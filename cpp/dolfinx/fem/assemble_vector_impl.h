@@ -27,7 +27,132 @@
 namespace dolfinx::fem::impl
 {
 
+template <typename T>
+auto create_action(
+    const std::function<void(T*, const T*, const T*, const double*, const int*,
+                             const std::uint8_t*)>& kernel,
+    const xtl::span<const T>& constants, const xtl::span<const T>& coeffs,
+    int cstride, const xtl::span<const std::uint32_t>& /*cell_info*/)
+{
+  return [&kernel, &constants, &coeffs, cstride](
+             const xtl::span<const double>& coords, const xtl::span<const T>& x,
+             std::int32_t index, const xtl::span<T>& b)
+  {
+    const T* coeff_array = coeffs.data() + index * cstride;
+    std::vector<T> A;
+    A.resize(b.size() * x.size());
+    std::fill(A.begin(), A.end(), 0);
+    kernel(A.data(), coeff_array, constants.data(), coords.data(), nullptr,
+           nullptr);
+    // dof_transform(A, cell_info, c, x.size());
+    // dof_transform_to_transpose(Ae, cell_info, c, b.size());
+    for (std::size_t i = 0; i < b.size(); ++i)
+    {
+      for (std::size_t j = 0; j < x.size(); ++j)
+        b[i] += A[i * x.size() + j] * x[j];
+    }
+  };
+}
+
 /// Implementation of vector assembly
+
+/// Implementation of bc application
+/// @tparam T The scalar type
+/// @tparam _bs0 The block size of the form test function dof map. If
+/// less than zero the block size is determined at runtime. If `_bs0` is
+/// positive the block size is used as a compile-time constant, which
+/// has performance benefits.
+/// @tparam _bs1 The block size of the trial function dof map.
+template <typename T>
+void _lift_bc_cells_new(
+    const xtl::span<T>& b, const mesh::Geometry& geometry,
+    const xtl::span<const std::int32_t>& cells,
+    const std::function<void(const xtl::span<const double>&,
+                             const xtl::span<const T>&, std::int32_t,
+                             const xtl::span<T>&)>& action,
+    const graph::AdjacencyList<std::int32_t>& dofmap0, int bs0,
+    const graph::AdjacencyList<std::int32_t>& dofmap1, int bs1,
+    const xtl::span<const T>& bc_values1,
+    const xtl::span<const std::int8_t>& bc_markers1,
+    const xtl::span<const T>& x0, double scale)
+{
+  // Prepare cell geometry
+  const graph::AdjacencyList<std::int32_t>& x_dofmap = geometry.dofmap();
+
+  // FIXME: Add proper interface for num coordinate dofs
+  const std::size_t num_dofs_g = x_dofmap.num_links(0);
+  xtl::span<const double> x_g = geometry.x();
+
+  // Data structures used in bc application
+  std::vector<double> coordinate_dofs(3 * num_dofs_g);
+  std::vector<T> be, x;
+  for (std::size_t index = 0; index < cells.size(); ++index)
+  {
+    std::int32_t c = cells[index];
+
+    // Get dof maps for cell
+    auto dmap1 = dofmap1.links(c);
+
+    // Check if bc is applied to cell
+    bool has_bc = false;
+    for (std::size_t j = 0; j < dmap1.size(); ++j)
+    {
+      for (int k = 0; k < bs1; ++k)
+      {
+        assert(bs1 * dmap1[j] + k < (int)bc_markers1.size());
+        if (bc_markers1[bs1 * dmap1[j] + k])
+        {
+          has_bc = true;
+          break;
+        }
+      }
+    }
+
+    if (!has_bc)
+      continue;
+
+    // Get cell coordinates/geometry
+    auto x_dofs = x_dofmap.links(c);
+    for (std::size_t i = 0; i < x_dofs.size(); ++i)
+    {
+      common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs[i]),
+                              std::next(coordinate_dofs.begin(), 3 * i));
+    }
+
+    // Size data structure for assembly
+    auto dmap0 = dofmap0.links(c);
+
+    const int num_rows = bs0 * dmap0.size();
+    const int num_cols = bs1 * dmap1.size();
+
+    // Size data structure for assembly
+    be.resize(num_rows);
+    std::fill(be.begin(), be.end(), 0);
+    x.resize(num_cols);
+    std::fill(x.begin(), x.end(), 0);
+    for (std::size_t j = 0; j < dmap1.size(); ++j)
+    {
+      for (int k = 0; k < bs1; ++k)
+      {
+        const std::int32_t jj = bs1 * dmap1[j] + k;
+        assert(jj < (int)bc_markers1.size());
+        if (bc_markers1[jj])
+        {
+          const T bc = bc_values1[jj];
+          const T _x0 = x0.empty() ? 0.0 : x0[jj];
+          x[bs1 * j + k] = scale * (bc - _x0);
+        }
+      }
+    }
+
+    action(coordinate_dofs, x, index, be);
+    for (std::size_t i = 0; i < dmap0.size(); ++i)
+    {
+      for (int k = 0; k < bs0; ++k)
+        b[bs0 * dmap0[i] + k] -= be[bs0 * i + k];
+    }
+  }
+}
 
 /// Implementation of bc application
 /// @tparam T The scalar type
@@ -114,7 +239,7 @@ void _lift_bc_cells(
     for (std::size_t i = 0; i < x_dofs.size(); ++i)
     {
       common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs[i]),
-                           std::next(coordinate_dofs.begin(), 3 * i));
+                              std::next(coordinate_dofs.begin(), 3 * i));
     }
 
     // Size data structure for assembly
@@ -254,7 +379,7 @@ void _lift_bc_exterior_facets(
     for (std::size_t i = 0; i < x_dofs.size(); ++i)
     {
       common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs[i]),
-                           std::next(coordinate_dofs.begin(), 3 * i));
+                              std::next(coordinate_dofs.begin(), 3 * i));
     }
 
     // Size data structure for assembly
@@ -357,14 +482,16 @@ void _lift_bc_interior_facets(
     auto x_dofs0 = x_dofmap.links(cells[0]);
     for (std::size_t i = 0; i < x_dofs0.size(); ++i)
     {
-      common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs0[i]),
-                           xt::view(coordinate_dofs, 0, i, xt::all()).begin());
+      common::impl::copy_N<3>(
+          std::next(x_g.begin(), 3 * x_dofs0[i]),
+          xt::view(coordinate_dofs, 0, i, xt::all()).begin());
     }
     auto x_dofs1 = x_dofmap.links(cells[1]);
     for (std::size_t i = 0; i < x_dofs1.size(); ++i)
     {
-      common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs1[i]),
-                           xt::view(coordinate_dofs, 1, i, xt::all()).begin());
+      common::impl::copy_N<3>(
+          std::next(x_g.begin(), 3 * x_dofs1[i]),
+          xt::view(coordinate_dofs, 1, i, xt::all()).begin());
     }
 
     // Get dof maps for cells and pack
@@ -488,6 +615,7 @@ void _lift_bc_interior_facets(
         b[bs0 * dmap0_cell1[i] + k] += be[offset + bs0 * i + k];
   }
 }
+
 /// Execute kernel over cells and accumulate result in vector
 /// @tparam T The scalar type
 /// @tparam _bs The block size of the form test function dof map. If
@@ -533,7 +661,7 @@ void assemble_cells(
     for (std::size_t i = 0; i < x_dofs.size(); ++i)
     {
       common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs[i]),
-                           std::next(coordinate_dofs.begin(), 3 * i));
+                              std::next(coordinate_dofs.begin(), 3 * i));
     }
 
     // Tabulate vector for cell
@@ -604,7 +732,7 @@ void assemble_exterior_facets(
     for (std::size_t i = 0; i < x_dofs.size(); ++i)
     {
       common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs[i]),
-                           std::next(coordinate_dofs.begin(), 3 * i));
+                              std::next(coordinate_dofs.begin(), 3 * i));
     }
 
     // Tabulate element vector
@@ -683,14 +811,16 @@ void assemble_interior_facets(
     auto x_dofs0 = x_dofmap.links(cells[0]);
     for (std::size_t i = 0; i < x_dofs0.size(); ++i)
     {
-      common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs0[i]),
-                           xt::view(coordinate_dofs, 0, i, xt::all()).begin());
+      common::impl::copy_N<3>(
+          std::next(x_g.begin(), 3 * x_dofs0[i]),
+          xt::view(coordinate_dofs, 0, i, xt::all()).begin());
     }
     auto x_dofs1 = x_dofmap.links(cells[1]);
     for (std::size_t i = 0; i < x_dofs1.size(); ++i)
     {
-      common::impl::copy_N<3>(std::next(x_g.begin(), 3 * x_dofs1[i]),
-                           xt::view(coordinate_dofs, 1, i, xt::all()).begin());
+      common::impl::copy_N<3>(
+          std::next(x_g.begin(), 3 * x_dofs1[i]),
+          xt::view(coordinate_dofs, 1, i, xt::all()).begin());
     }
 
     // Get dofmaps for cells
@@ -804,10 +934,16 @@ void lift_bc(xtl::span<T> b, const Form<T>& a,
     const std::vector<std::int32_t>& cells = a.cell_domains(i);
     if (bs0 == 1 and bs1 == 1)
     {
-      _lift_bc_cells<T, 1, 1>(b, mesh->geometry(), kernel, cells, dof_transform,
-                              dofmap0, bs0, dof_transform_to_transpose, dofmap1,
-                              bs1, constants, coeffs, cstride, cell_info,
-                              bc_values1, bc_markers1, x0, scale);
+      // _lift_bc_cells<T, 1, 1>(b, mesh->geometry(), kernel, cells,
+      // dof_transform,
+      //                         dofmap0, bs0, dof_transform_to_transpose,
+      //                         dofmap1, bs1, constants, coeffs, cstride,
+      //                         cell_info, bc_values1, bc_markers1, x0, scale);
+
+      auto action
+          = create_action(kernel, constants, coeffs, cstride, cell_info);
+      _lift_bc_cells_new<T>(b, mesh->geometry(), cells, action, dofmap0, bs0,
+                            dofmap1, bs1, bc_values1, bc_markers1, x0, scale);
     }
     else if (bs0 == 3 and bs1 == 3)
     {
