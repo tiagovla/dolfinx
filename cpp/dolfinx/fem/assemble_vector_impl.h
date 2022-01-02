@@ -26,26 +26,33 @@
 
 namespace dolfinx::fem::impl
 {
-
 template <typename T>
 auto create_action(
     const std::function<void(T*, const T*, const T*, const double*, const int*,
                              const std::uint8_t*)>& kernel,
     const xtl::span<const T>& constants, const xtl::span<const T>& coeffs,
-    int cstride, const xtl::span<const std::uint32_t>& /*cell_info*/)
+    int cstride,
+    const std::function<void(const xtl::span<T>&,
+                             const xtl::span<const std::uint32_t>&,
+                             std::int32_t, int)>& dof_transform,
+    const std::function<void(const xtl::span<T>&,
+                             const xtl::span<const std::uint32_t>&,
+                             std::int32_t, int)>& dof_transform_to_transpose,
+    const xtl::span<const std::uint32_t>& cell_info)
 {
-  return [&kernel, &constants, &coeffs, cstride](
+  return [&kernel, &constants, &coeffs, cstride, &cell_info, dof_transform,
+          dof_transform_to_transpose](
              const xtl::span<const double>& coords, const xtl::span<const T>& x,
-             std::int32_t index, const xtl::span<T>& b)
+             std::int32_t index, std::int32_t cell, const xtl::span<T>& b)
   {
     const T* coeff_array = coeffs.data() + index * cstride;
-    std::vector<T> A;
+    std::vector<T> A; // FIXME
     A.resize(b.size() * x.size());
     std::fill(A.begin(), A.end(), 0);
     kernel(A.data(), coeff_array, constants.data(), coords.data(), nullptr,
            nullptr);
-    // dof_transform(A, cell_info, c, x.size());
-    // dof_transform_to_transpose(Ae, cell_info, c, b.size());
+    dof_transform(A, cell_info, cell, x.size());
+    dof_transform_to_transpose(A, cell_info, cell, b.size());
     for (std::size_t i = 0; i < b.size(); ++i)
     {
       for (std::size_t j = 0; j < x.size(); ++j)
@@ -69,7 +76,7 @@ void _lift_bc_cells_new(
     const xtl::span<const std::int32_t>& cells,
     const std::function<void(const xtl::span<const double>&,
                              const xtl::span<const T>&, std::int32_t,
-                             const xtl::span<T>&)>& action,
+                             std::int32_t, const xtl::span<T>&)>& action,
     const graph::AdjacencyList<std::int32_t>& dofmap0, int bs0,
     const graph::AdjacencyList<std::int32_t>& dofmap1, int bs1,
     const xtl::span<const T>& bc_values1,
@@ -145,7 +152,7 @@ void _lift_bc_cells_new(
       }
     }
 
-    action(coordinate_dofs, x, index, be);
+    action(coordinate_dofs, x, index, c, be);
     for (std::size_t i = 0; i < dmap0.size(); ++i)
     {
       for (int k = 0; k < bs0; ++k)
@@ -941,7 +948,8 @@ void lift_bc(xtl::span<T> b, const Form<T>& a,
       //                         cell_info, bc_values1, bc_markers1, x0, scale);
 
       auto action
-          = create_action(kernel, constants, coeffs, cstride, cell_info);
+          = create_action(kernel, constants, coeffs, cstride, dof_transform,
+                          dof_transform_to_transpose, cell_info);
       _lift_bc_cells_new<T>(b, mesh->geometry(), cells, action, dofmap0, bs0,
                             dofmap1, bs1, bc_values1, bc_markers1, x0, scale);
     }
