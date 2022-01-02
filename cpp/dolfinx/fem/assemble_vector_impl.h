@@ -40,15 +40,15 @@ auto create_action(
                              std::int32_t, int)>& dof_transform_to_transpose,
     const xtl::span<const std::uint32_t>& cell_info)
 {
-  return [&kernel, &constants, &coeffs, cstride, &cell_info, dof_transform,
-          dof_transform_to_transpose](
-             const xtl::span<const double>& coords, const xtl::span<const T>& x,
-             std::int32_t index, std::int32_t cell, const xtl::span<T>& b)
+  return
+      [&kernel, &constants, &coeffs, cstride, &cell_info, dof_transform,
+       dof_transform_to_transpose, A = std::vector<T>()](
+          const xtl::span<const double>& coords, const xtl::span<const T>& x,
+          std::int32_t index, std::int32_t cell, const xtl::span<T>& b) mutable
   {
-    const T* coeff_array = coeffs.data() + index * cstride;
-    std::vector<T> A; // FIXME
     A.resize(b.size() * x.size());
     std::fill(A.begin(), A.end(), 0);
+    const T* coeff_array = coeffs.data() + index * cstride;
     kernel(A.data(), coeff_array, constants.data(), coords.data(), nullptr,
            nullptr);
     dof_transform(A, cell_info, cell, x.size());
@@ -137,6 +137,8 @@ void _lift_bc_cells_new(
     std::fill(be.begin(), be.end(), 0);
     x.resize(num_cols);
     std::fill(x.begin(), x.end(), 0);
+
+    // Compute 'x' vector
     for (std::size_t j = 0; j < dmap1.size(); ++j)
     {
       for (int k = 0; k < bs1; ++k)
@@ -152,7 +154,10 @@ void _lift_bc_cells_new(
       }
     }
 
+    // Compute action on 'x'
     action(coordinate_dofs, x, index, c, be);
+
+    // Scatter to global b array
     for (std::size_t i = 0; i < dmap0.size(); ++i)
     {
       for (int k = 0; k < bs0; ++k)
@@ -939,34 +944,36 @@ void lift_bc(xtl::span<T> b, const Form<T>& a,
     const auto& kernel = a.kernel(IntegralType::cell, i);
     const auto& [coeffs, cstride] = coefficients.at({IntegralType::cell, i});
     const std::vector<std::int32_t>& cells = a.cell_domains(i);
-    if (bs0 == 1 and bs1 == 1)
-    {
-      // _lift_bc_cells<T, 1, 1>(b, mesh->geometry(), kernel, cells,
-      // dof_transform,
-      //                         dofmap0, bs0, dof_transform_to_transpose,
-      //                         dofmap1, bs1, constants, coeffs, cstride,
-      //                         cell_info, bc_values1, bc_markers1, x0, scale);
+    // if (bs0 == 1 and bs1 == 1)
+    // {
+    // _lift_bc_cells<T, 1, 1>(b, mesh->geometry(), kernel, cells,
+    // dof_transform,
+    //                         dofmap0, bs0, dof_transform_to_transpose,
+    //                         dofmap1, bs1, constants, coeffs, cstride,
+    //                         cell_info, bc_values1, bc_markers1, x0, scale);
 
-      auto action
-          = create_action(kernel, constants, coeffs, cstride, dof_transform,
-                          dof_transform_to_transpose, cell_info);
-      _lift_bc_cells_new<T>(b, mesh->geometry(), cells, action, dofmap0, bs0,
-                            dofmap1, bs1, bc_values1, bc_markers1, x0, scale);
-    }
-    else if (bs0 == 3 and bs1 == 3)
-    {
-      _lift_bc_cells<T, 3, 3>(b, mesh->geometry(), kernel, cells, dof_transform,
-                              dofmap0, bs0, dof_transform_to_transpose, dofmap1,
-                              bs1, constants, coeffs, cstride, cell_info,
-                              bc_values1, bc_markers1, x0, scale);
-    }
-    else
-    {
-      _lift_bc_cells(b, mesh->geometry(), kernel, cells, dof_transform, dofmap0,
-                     bs0, dof_transform_to_transpose, dofmap1, bs1, constants,
-                     coeffs, cstride, cell_info, bc_values1, bc_markers1, x0,
-                     scale);
-    }
+    auto action
+        = create_action(kernel, constants, coeffs, cstride, dof_transform,
+                        dof_transform_to_transpose, cell_info);
+    _lift_bc_cells_new<T>(b, mesh->geometry(), cells, action, dofmap0, bs0,
+                          dofmap1, bs1, bc_values1, bc_markers1, x0, scale);
+    // }
+    // else if (bs0 == 3 and bs1 == 3)
+    // {
+    //   _lift_bc_cells<T, 3, 3>(b, mesh->geometry(), kernel, cells,
+    //   dof_transform,
+    //                           dofmap0, bs0, dof_transform_to_transpose,
+    //                           dofmap1, bs1, constants, coeffs, cstride,
+    //                           cell_info, bc_values1, bc_markers1, x0, scale);
+    // }
+    // else
+    // {
+    //   _lift_bc_cells(b, mesh->geometry(), kernel, cells, dof_transform,
+    //   dofmap0,
+    //                  bs0, dof_transform_to_transpose, dofmap1, bs1,
+    //                  constants, coeffs, cstride, cell_info, bc_values1,
+    //                  bc_markers1, x0, scale);
+    // }
   }
 
   for (int i : a.integral_ids(IntegralType::exterior_facet))
