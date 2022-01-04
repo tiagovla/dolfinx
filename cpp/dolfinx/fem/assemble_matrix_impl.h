@@ -421,11 +421,11 @@ void assemble_matrix(
   const std::function<void(const xtl::span<T>&,
                            const xtl::span<const std::uint32_t>&, std::int32_t,
                            int)>& dof_transform
-      = element0->get_dof_transformation_function<T>();
+      = element0->dof_transformation_function<T>();
   const std::function<void(const xtl::span<T>&,
                            const xtl::span<const std::uint32_t>&, std::int32_t,
                            int)>& dof_transform_to_transpose
-      = element1->get_dof_transformation_to_transpose_function<T>();
+      = element1->dof_transformation_to_transpose_function<T>();
 
   const bool needs_transformation_data
       = element0->needs_dof_transformations()

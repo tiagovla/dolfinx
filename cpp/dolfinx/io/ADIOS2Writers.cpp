@@ -230,7 +230,7 @@ tabulate_lagrange_dof_coordinates(const dolfinx::fem::FunctionSpace& V)
     cell_info = xtl::span(mesh->topology().get_cell_permutation_info());
   }
   const auto apply_dof_transformation
-      = element->get_dof_transformation_function<double>();
+      = element->dof_transformation_function<double>();
 
   // Tabulate basis functions at node reference coordinates
   const xt::xtensor<double, 2> phi

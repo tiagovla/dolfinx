@@ -252,8 +252,8 @@ public:
   template <typename T>
   std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&,
                      std::int32_t, int)>
-  get_dof_transformation_function(bool inverse = false, bool transpose = false,
-                                  bool scalar_element = false) const
+  dof_transformation_function(bool inverse = false, bool transpose = false,
+                              bool scalar_element = false) const
   {
     if (!needs_dof_transformations())
     {
@@ -278,8 +278,8 @@ public:
         for (std::size_t i = 0; i < _sub_elements.size(); ++i)
         {
           sub_element_functions.push_back(
-              _sub_elements[i]->get_dof_transformation_function<T>(inverse,
-                                                                   transpose));
+              _sub_elements[i]->dof_transformation_function<T>(inverse,
+                                                               transpose));
           dims.push_back(_sub_elements[i]->space_dimension());
         }
 
@@ -304,7 +304,7 @@ public:
         const std::function<void(const xtl::span<T>&,
                                  const xtl::span<const std::uint32_t>&,
                                  std::int32_t, int)>
-            sub_function = _sub_elements[0]->get_dof_transformation_function<T>(
+            sub_function = _sub_elements[0]->dof_transformation_function<T>(
                 inverse, transpose);
         const int ebs = _bs;
         return
@@ -376,10 +376,9 @@ public:
   template <typename T>
   std::function<void(const xtl::span<T>&, const xtl::span<const std::uint32_t>&,
                      std::int32_t, int)>
-  get_dof_transformation_to_transpose_function(bool inverse = false,
-                                               bool transpose = false,
-                                               bool scalar_element
-                                               = false) const
+  dof_transformation_to_transpose_function(bool inverse = false,
+                                           bool transpose = false,
+                                           bool scalar_element = false) const
   {
     if (!needs_dof_transformations())
     {
@@ -402,7 +401,7 @@ public:
         for (std::size_t i = 0; i < _sub_elements.size(); ++i)
         {
           sub_element_functions.push_back(
-              _sub_elements[i]->get_dof_transformation_to_transpose_function<T>(
+              _sub_elements[i]->dof_transformation_to_transpose_function<T>(
                   inverse, transpose));
         }
 
@@ -426,7 +425,7 @@ public:
         const std::function<void(const xtl::span<T>&,
                                  const xtl::span<const std::uint32_t>&,
                                  std::int32_t, int)>
-            sub_function = _sub_elements[0]->get_dof_transformation_function<T>(
+            sub_function = _sub_elements[0]->dof_transformation_function<T>(
                 inverse, transpose);
         return [this,
                 sub_function](const xtl::span<T>& data,

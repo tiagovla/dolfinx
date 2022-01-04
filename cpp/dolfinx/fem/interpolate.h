@@ -124,9 +124,9 @@ void interpolate_same_map(Function<T>& u1, const Function<T>& u0)
   const int bs1 = element1->block_size();
   const int bs0 = element0->block_size();
   const auto apply_dof_transformation
-      = element0->get_dof_transformation_function<T>(false, true, false);
+      = element0->dof_transformation_function<T>(false, true, false);
   const auto apply_inverse_dof_transform
-      = element1->get_dof_transformation_function<T>(true, true, false);
+      = element1->dof_transformation_function<T>(true, true, false);
 
   // Creat working array
   std::vector<T> local0(element0->space_dimension());
@@ -205,9 +205,9 @@ void interpolate_nonmatching_maps(Function<T>& u1, const Function<T>& u0)
   const int bs0 = element0->block_size();
   const int bs1 = element1->block_size();
   const auto apply_dof_transformation0
-      = element0->get_dof_transformation_function<double>(false, false, false);
+      = element0->dof_transformation_function<double>(false, false, false);
   const auto apply_inverse_dof_transform1
-      = element1->get_dof_transformation_function<T>(true, true, false);
+      = element1->dof_transformation_function<T>(true, true, false);
 
   // Get sizes of elements
   const std::size_t dim0 = element0->space_dimension() / bs0;
@@ -442,7 +442,7 @@ void interpolate(Function<T>& u, xt::xarray<T>& f,
                              const xtl::span<const std::uint32_t>&,
                              std::int32_t, int)>
         apply_inv_transpose_dof_transformation
-        = element->get_dof_transformation_function<T>(true, true, true);
+        = element->dof_transformation_function<T>(true, true, true);
     for (std::size_t c = 0; c < cells.size(); ++c)
     {
       const std::int32_t cell = cells[c];
@@ -503,7 +503,7 @@ void interpolate(Function<T>& u, xt::xarray<T>& f,
                              const xtl::span<const std::uint32_t>&,
                              std::int32_t, int)>
         apply_inverse_transpose_dof_transformation
-        = element->get_dof_transformation_function<T>(true, true);
+        = element->dof_transformation_function<T>(true, true);
 
     // Get interpolation operator
     const xt::xtensor<double, 2>& Pi = element->interpolation_operator();

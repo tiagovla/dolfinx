@@ -176,7 +176,7 @@ FunctionSpace::tabulate_dof_coordinates(bool transpose) const
                            const xtl::span<const std::uint32_t>&, std::int32_t,
                            int)>
       apply_dof_transformation
-      = _element->get_dof_transformation_function<double>();
+      = _element->dof_transformation_function<double>();
 
   const xt::xtensor<double, 2> phi
       = xt::view(cmap.tabulate(0, X), 0, xt::all(), xt::all(), 0);

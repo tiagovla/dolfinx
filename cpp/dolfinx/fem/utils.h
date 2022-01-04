@@ -592,7 +592,7 @@ pack_coefficients(const Form<T>& form, fem::IntegralType integral_type, int id)
       for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
       {
         const auto transform
-            = elements[coeff]->get_dof_transformation_function<T>(false, true);
+            = elements[coeff]->dof_transformation_function<T>(false, true);
         impl::pack_coefficient_entity<T, std::int32_t>(
             xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff],
             cells, [](std::int32_t entity) { return entity; }, offsets[coeff],
@@ -614,7 +614,7 @@ pack_coefficients(const Form<T>& form, fem::IntegralType integral_type, int id)
       for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
       {
         const auto transform
-            = elements[coeff]->get_dof_transformation_function<T>(false, true);
+            = elements[coeff]->dof_transformation_function<T>(false, true);
         impl::pack_coefficient_entity<T, std::pair<std::int32_t, int>>(
             xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff],
             facets, fetch_cell, offsets[coeff],
@@ -641,7 +641,7 @@ pack_coefficients(const Form<T>& form, fem::IntegralType integral_type, int id)
       for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
       {
         const auto transform
-            = elements[coeff]->get_dof_transformation_function<T>(false, true);
+            = elements[coeff]->dof_transformation_function<T>(false, true);
         // Pack coefficient ['+']
         impl::pack_coefficient_entity<
             T, std::tuple<std::int32_t, int, std::int32_t, int>>(
@@ -741,7 +741,7 @@ pack_coefficients(const Expression<T>& u,
     for (std::size_t coeff = 0; coeff < dofmaps.size(); ++coeff)
     {
       const auto transform
-          = elements[coeff]->get_dof_transformation_function<T>(false, true);
+          = elements[coeff]->dof_transformation_function<T>(false, true);
       impl::pack_coefficient_entity<T, std::int32_t>(
           xtl::span<T>(c), cstride, v[coeff], cell_info, *dofmaps[coeff], cells,
           [](std::int32_t entity) { return entity; }, offsets[coeff],

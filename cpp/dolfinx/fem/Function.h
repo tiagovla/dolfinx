@@ -306,7 +306,7 @@ public:
                              const xtl::span<const std::uint32_t>&,
                              std::int32_t, int)>
         apply_dof_transformation
-        = element->get_dof_transformation_function<double>();
+        = element->dof_transformation_function<double>();
 
     // -- Lambda function for affine pull-backs
     auto pull_back_affine =
