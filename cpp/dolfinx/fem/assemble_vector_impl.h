@@ -24,6 +24,7 @@
 #include <xtensor/xbuilder.hpp>
 #include <xtensor/xtensor.hpp>
 
+/// Implementation of vector assembly
 namespace dolfinx::fem::impl
 {
 
@@ -144,8 +145,6 @@ auto create_action(
     }
   };
 }
-
-/// Implementation of vector assembly
 
 /// Implementation of bc application
 /// @tparam T The scalar type
