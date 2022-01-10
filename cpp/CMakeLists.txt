@@ -302,7 +302,7 @@ endif()
 
 if (GENERATE_DEMO_TEST_DATA)
   message(STATUS "")
-  message(STATUS "Generating form files in demo and test directories. May take some time...")
+  message(STATUS "XXX Generating form files in demo and test directories. May take some time...")
   message(STATUS "----------------------------------------------------------------------------------------")
   execute_process(
     COMMAND ${Python3_EXECUTABLE} "-B" "-u" ${DOLFINX_SOURCE_DIR}/cmake/scripts/generate-form-files.py ${PETSC_SCALAR_COMPLEX}
@@ -320,8 +320,11 @@ if (GENERATE_DEMO_TEST_DATA)
   endif()
 endif()
 
+message(STATUS "DEBUG End cleanup")
+
 #------------------------------------------------------------------------------
 # Install the demo source files
+message(STATUS "DEBUG Install files")
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/demo DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/dolfinx
   FILES_MATCHING
   PATTERN "CMakeLists.txt"
@@ -333,6 +336,7 @@ install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/demo DESTINATION ${CMAKE_INSTALL_D
   PATTERN "*.xdmf"
   PATTERN "*.h5"
   PATTERN "CMakeFiles" EXCLUDE)
+message(STATUS "DEBUG End install files")
 
 #------------------------------------------------------------------------------
 # Add "make uninstall" target
