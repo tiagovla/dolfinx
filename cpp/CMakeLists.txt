@@ -341,17 +341,24 @@ message(STATUS "DEBUG End install files")
 #------------------------------------------------------------------------------
 # Add "make uninstall" target
 
+message(STATUS "DEBUG uninstall configure")
+
 configure_file(
   "${DOLFINX_SOURCE_DIR}/cmake/templates/cmake_uninstall.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
   IMMEDIATE @ONLY)
 
+  message(STATUS "DEBUG uninstall target")
+
 add_custom_target(uninstall
   "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
 
+message(STATUS "DEBUG end uninstall target")
 #------------------------------------------------------------------------------
 # Print post-install message
 
+message(STATUS "DEBUG pre message")
 add_subdirectory(cmake/post-install)
+message(STATUS "DEBUG post message")
 
 #------------------------------------------------------------------------------
