@@ -311,6 +311,7 @@ if (GENERATE_DEMO_TEST_DATA)
     OUTPUT_VARIABLE FORM_GENERATION_OUTPUT
     ERROR_VARIABLE FORM_GENERATION_OUTPUT
     )
+  message(STATUS "Completed form generation")
 
   if (FORM_GENERATION_RESULT)
     # Cleanup so that form generation is triggered next time we run cmake
