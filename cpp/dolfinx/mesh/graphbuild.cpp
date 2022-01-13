@@ -194,10 +194,17 @@ compute_nonlocal_dual_graph(
       if (last_equal)
       {
         LOG(ERROR) << "Found three identical facets in mesh (match process)";
+        const int ix = perm[i - 2];
+        auto facetx = recvd_buffer.links(ix);
+        LOG(ERROR) << "The vertices f-1 are: [" << facetx[0] << ", "
+                   << facetx[1] << ", " << facetx[2] << "] cell=" << facetx[3]
+                   << " on " << proc[ix];
         LOG(ERROR) << "The vertices f0 are: [" << facet0[0] << ", " << facet0[1]
-                   << ", " << facet0[2] << "]";
+                   << ", " << facet0[2] << "] cell=" << facet0[3] << " on "
+                   << proc[i0];
         LOG(ERROR) << "The vertices f1 are: [" << facet1[0] << ", " << facet1[1]
-                   << ", " << facet1[2] << "]";
+                   << ", " << facet1[2] << "] cell=" << facet1[3] << " on "
+                   << proc[i1];
         throw std::runtime_error("Inconsistent mesh data in GraphBuilder: "
                                  "found three identical facets");
       }
