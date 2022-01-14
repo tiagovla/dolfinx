@@ -8,11 +8,13 @@
 #include "utils.h"
 #include <dolfinx/common/IndexMap.h>
 #include <dolfinx/common/Timer.h>
+#include <dolfinx/common/log.h>
 #include <dolfinx/graph/AdjacencyList.h>
 #include <dolfinx/mesh/Geometry.h>
 #include <dolfinx/mesh/Mesh.h>
 #include <dolfinx/mesh/MeshTags.h>
 #include <dolfinx/mesh/Topology.h>
+#include <dolfinx/mesh/graphbuild.h>
 #include <limits>
 #include <map>
 #include <vector>
@@ -396,6 +398,24 @@ compute_refinement(
   const std::int32_t tdim = mesh.topology().dim();
   const std::int32_t num_cell_edges = tdim * 3 - 3;
   const std::int32_t num_cell_vertices = tdim + 1;
+
+  LOG(INFO) << "Checking dual graph before refinement";
+  std::int32_t ncells = mesh.topology().index_map(tdim)->size_local();
+  const auto tc = mesh.topology().connectivity(tdim, 0);
+  std::int32_t np = tc->offsets()[ncells];
+  const std::vector<std::int32_t>& local_v = tc->array();
+  std::vector<std::int64_t> global_v(np);
+  std::vector<std::int32_t> global_offsets(tc->offsets().begin(),
+                                           tc->offsets().begin() + ncells + 1);
+  std::vector<std::int64_t> mapping
+      = mesh.topology().index_map(0)->global_indices();
+  std::transform(local_v.begin(), local_v.begin() + np, global_v.begin(),
+                 [&](std::int32_t ilocal) { return mapping[ilocal]; });
+
+  auto [graph, _] = mesh::build_dual_graph(
+      mesh.comm(), graph::AdjacencyList<std::int64_t>(global_v, global_offsets),
+      tdim);
+  LOG(INFO) << "Finished dual graph before refinement";
 
   // Make new vertices in parallel
   const auto [new_vertex_map, new_vertex_coordinates]

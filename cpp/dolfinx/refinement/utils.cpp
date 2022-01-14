@@ -212,7 +212,7 @@ refinement::create_new_vertices(
   const std::shared_ptr<const common::IndexMap> edge_index_map
       = mesh.topology().index_map(1);
 
-  // Add new edge midpoints to list of vertices
+  // Add new edge midpoints to list of vertices, numbered from zero.
   int n = 0;
   std::map<std::int32_t, std::int64_t> local_edge_to_new_vertex;
   for (int local_i = 0; local_i < edge_index_map->size_local(); ++local_i)
@@ -225,6 +225,7 @@ refinement::create_new_vertices(
     }
   }
 
+  // Add offset to vertex number, so they appear at the end of the local range.
   const std::int64_t num_local = n;
   std::int64_t global_offset = 0;
   MPI_Exscan(&num_local, &global_offset, 1,
@@ -308,8 +309,7 @@ refinement::partition(const mesh::Mesh& old_mesh,
 
   auto partitioner = [](MPI_Comm comm, int, int tdim,
                         const graph::AdjacencyList<std::int64_t>& cell_topology,
-                        mesh::GhostMode)
-  {
+                        mesh::GhostMode) {
     // Find out the ghosting information
     auto [graph, _] = mesh::build_dual_graph(comm, cell_topology, tdim);
 
@@ -377,11 +377,11 @@ refinement::adjust_indices(const common::IndexMap& index_map, std::int32_t n)
   MPI_Comm comm = index_map.comm();
   int mpi_size = dolfinx::MPI::size(comm);
   int mpi_rank = dolfinx::MPI::rank(comm);
-  std::vector<std::int32_t> recvn(mpi_size);
-  MPI_Allgather(&n, 1, MPI_INT32_T, recvn.data(), 1, MPI_INT32_T, comm);
-  std::vector<std::int64_t> global_offsets = {0};
-  for (std::int32_t r : recvn)
-    global_offsets.push_back(global_offsets.back() + r);
+  std::vector<std::int32_t> recvn(mpi_size + 1, 0);
+  MPI_Allgather(&n, 1, MPI_INT32_T, recvn.data() + 1, 1, MPI_INT32_T, comm);
+  std::vector<std::int64_t> global_offsets(recvn.begin(), recvn.end());
+  std::partial_sum(global_offsets.begin(), global_offsets.end(),
+                   global_offsets.begin());
 
   std::vector global_indices = index_map.global_indices();
 
