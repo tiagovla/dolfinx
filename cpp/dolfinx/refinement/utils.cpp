@@ -247,10 +247,6 @@ refinement::create_new_vertices(
   LOG(INFO) << "Creating new vertices in range: [" << global_offset << " - "
             << global_offset + num_local << "]";
 
-  if (dolfinx::MPI::rank(comm) == 488)
-  {
-  }
-
   // Create actual points
   xt::xtensor<double, 2> new_vertex_coordinates
       = create_new_geometry(mesh, local_edge_to_new_vertex);
