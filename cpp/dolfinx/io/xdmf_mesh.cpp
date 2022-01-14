@@ -58,12 +58,11 @@ void xdmf_mesh::add_topology_data(MPI_Comm comm, pugi::xml_node& xml_node,
 
   const std::vector<std::int64_t>& ghosts = map_g->ghosts();
 
-  auto vtk_map = geometry.cmap().get_vtk_permutation();
-
   auto map_e = topology.index_map(dim);
   assert(map_e);
   if (dim == tdim)
   {
+    const std::vector vtk_map = geometry.cmap().get_vtk_permutation();
     for (std::int32_t c : entities)
     {
       assert(c < cells_g.num_nodes());
@@ -81,6 +80,8 @@ void xdmf_mesh::add_topology_data(MPI_Comm comm, pugi::xml_node& xml_node,
   }
   else
   {
+    const std::vector vtk_map = io::cells::transpose(
+      io::cells::perm_vtk(entity_cell_type, num_nodes_per_entity));
     auto e_to_c = topology.connectivity(dim, tdim);
     if (!e_to_c)
       throw std::runtime_error("Mesh is missing entity-cell connectivity.");
