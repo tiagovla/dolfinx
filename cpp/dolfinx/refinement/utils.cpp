@@ -143,6 +143,14 @@ refinement::compute_edge_sharing(const mesh::Mesh& mesh)
     all_neighbor_set.insert(q.second.begin(), q.second.end());
   std::vector<int> neighbors(all_neighbor_set.begin(), all_neighbor_set.end());
 
+  // Log neighbors via edge
+  std::stringstream s;
+  s << "Edge neighbors=[";
+  for (int nbr : neighbors)
+    s << nbr << " ";
+  s << "]";
+  LOG(INFO) << s.str();
+
   MPI_Comm neighbor_comm;
   MPI_Dist_graph_create_adjacent(
       mesh.comm(), neighbors.size(), neighbors.data(), MPI_UNWEIGHTED,
@@ -238,6 +246,10 @@ refinement::create_new_vertices(
 
   LOG(INFO) << "Creating new vertices in range: [" << global_offset << " - "
             << global_offset + num_local << "]";
+
+  if (dolfinx::MPI::rank(comm) == 488)
+  {
+  }
 
   // Create actual points
   xt::xtensor<double, 2> new_vertex_coordinates
