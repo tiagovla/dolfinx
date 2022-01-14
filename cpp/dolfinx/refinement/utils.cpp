@@ -301,6 +301,12 @@ refinement::create_new_vertices(
     assert(it.second);
   }
 
+  for (auto q : local_edge_to_new_vertex)
+  {
+    if (q.second > 198100000 and q.second < 198200000)
+      LOG(INFO) << "New vertex " << q.second << " on edge " << q.first << "\n";
+  }
+
   return {std::move(local_edge_to_new_vertex),
           std::move(new_vertex_coordinates)};
 }
@@ -325,8 +331,8 @@ refinement::partition(const mesh::Mesh& old_mesh,
     // Find out the ghosting information
     auto [graph, _] = mesh::build_dual_graph(comm, cell_topology, tdim);
 
-    // FIXME: much of this is reverse engineering of data that is already
-    // known in the GraphBuilder
+    // FIXME: much of this is reverse engineering of data that is
+    // already known in the GraphBuilder
 
     const int mpi_size = MPI::size(comm);
     const int mpi_rank = MPI::rank(comm);
@@ -341,8 +347,8 @@ refinement::partition(const mesh::Mesh& old_mesh,
       local_offsets[i + 1] = local_offsets[i] + local_sizes[i];
 
     // All cells should go to their currently assigned ranks (no change)
-    // but must also be sent to their ghost destinations, which are determined
-    // here.
+    // but must also be sent to their ghost destinations, which are
+    // determined here.
     std::vector<std::int32_t> destinations;
     destinations.reserve(graph.num_nodes());
     std::vector<std::int32_t> dest_offsets = {0};
