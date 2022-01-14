@@ -204,6 +204,11 @@ public:
   /// @return True is geometry map is affine
   bool is_affine() const noexcept { return _is_affine; }
 
+  /// Get the permutation from this element to the VTK element of the same
+  /// degree
+  /// @return The matrix
+  std::vector<int> get_vtk_permutation() const;
+
 private:
   // Flag denoting affine map
   bool _is_affine;

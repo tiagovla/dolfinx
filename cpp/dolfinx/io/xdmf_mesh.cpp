@@ -57,8 +57,9 @@ void xdmf_mesh::add_topology_data(MPI_Comm comm, pugi::xml_node& xml_node,
   const std::int64_t offset_g = map_g->local_range()[0];
 
   const std::vector<std::int64_t>& ghosts = map_g->ghosts();
-  const std::vector vtk_map = io::cells::transpose(
-      io::cells::perm_vtk(entity_cell_type, num_nodes_per_entity));
+
+  auto vtk_map = geometry.cmap().get_vtk_permutation();
+
   auto map_e = topology.index_map(dim);
   assert(map_e);
   if (dim == tdim)

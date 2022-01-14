@@ -6,6 +6,7 @@
 
 #include "CoordinateElement.h"
 #include <basix/finite-element.h>
+#include <basix/interpolation.h>
 #include <cmath>
 #include <dolfinx/common/math.h>
 #include <dolfinx/mesh/cell_types.h>
@@ -201,5 +202,47 @@ basix::element::lagrange_variant CoordinateElement::variant() const
 {
   assert(_element);
   return _element->lagrange_variant();
+}
+//-----------------------------------------------------------------------------
+std::vector<int> CoordinateElement::get_vtk_permutation() const
+{
+  assert(_element);
+  basix::FiniteElement vtk_element = basix::create_element(
+      basix::element::family::P, _element->cell_type(), _element->degree(),
+      basix::element::lagrange_variant::vtk, true);
+  xt::xtensor<double, 2> i_mat
+      = compute_interpolation_operator(*_element, vtk_element);
+
+  // Check that matrix is a permutation
+  for (std::size_t i = 0; i < i_mat.shape(0); ++i)
+  {
+    int count = 0;
+    for (std::size_t j = 0; j < i_mat.shape(1); ++j)
+    {
+      if (xt::isclose(i_mat(i, j), 1)())
+        count += 1;
+      else if (!xt::isclose(i_mat(i, j), 0)())
+        throw std::runtime_error("Matrix is not a permutation");
+    }
+    if (count != 1)
+      throw std::runtime_error("Matrix is not a permutation");
+  }
+
+  // Compute the permutation
+  std::vector<int> perm(i_mat.shape(0));
+
+  for (std::size_t i = 0; i < i_mat.shape(0); ++i)
+  {
+    for (std::size_t j = 0; j < i_mat.shape(1); ++j)
+    {
+      if (xt::isclose(i_mat(i, j), 1)())
+      {
+        perm[i] = j;
+        break;
+      }
+    }
+  }
+
+  return perm;
 }
 //-----------------------------------------------------------------------------
