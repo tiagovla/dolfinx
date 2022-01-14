@@ -6,6 +6,7 @@
 
 #include "utils.h"
 #include <dolfinx/common/MPI.h>
+#include <dolfinx/common/log.h>
 #include <dolfinx/fem/ElementDofLayout.h>
 #include <dolfinx/mesh/Geometry.h>
 #include <dolfinx/mesh/Mesh.h>
@@ -235,6 +236,9 @@ refinement::create_new_vertices(
                 local_edge_to_new_vertex.end(),
                 [global_offset](auto& e) { e.second += global_offset; });
 
+  LOG(INFO) << "Creating new vertices in range: [" << global_offset << " - "
+            << global_offset + num_local << "]";
+
   // Create actual points
   xt::xtensor<double, 2> new_vertex_coordinates
       = create_new_geometry(mesh, local_edge_to_new_vertex);
@@ -391,6 +395,11 @@ refinement::adjust_indices(const common::IndexMap& index_map, std::int32_t n)
     global_indices[i] += global_offsets[mpi_rank];
   for (std::size_t i = 0; i < ghost_owners.size(); ++i)
     global_indices[local_size + i] += global_offsets[ghost_owners[i]];
+
+  LOG(INFO) << "Index adjustment: [" << index_map.local_range()[0] << "-"
+            << index_map.local_range()[1] << "] -> ["
+            << index_map.local_range()[0] + global_offsets[mpi_rank] << "-"
+            << index_map.local_range()[1] + global_offsets[mpi_rank + 1] << "]";
 
   return global_indices;
 }
