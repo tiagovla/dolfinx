@@ -527,6 +527,12 @@ compute_refinement(
   graph::AdjacencyList<std::int64_t> cell_adj(std::move(cell_topology),
                                               std::move(offsets));
 
+  for (auto q : cell_topology)
+  {
+    if (q > 198121000 and q < 198175000)
+      LOG(INFO) << "Cell vtx: " << q;
+  }
+
   return {std::move(cell_adj), std::move(new_vertex_coordinates),
           std::move(parent_cell)};
 }
