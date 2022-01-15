@@ -380,6 +380,12 @@ refinement::partition(const mesh::Mesh& old_mesh,
                                               std::move(dest_offsets));
   };
 
+  for (std::int64_t q : cell_topology.array())
+  {
+    if (q == 198174678 or q == 198174679 or q == 198121271)
+      LOG(INFO) << "into CREATE_MESH " << q;
+  }
+
   return mesh::create_mesh(old_mesh.comm(), cell_topology,
                            old_mesh.geometry().cmap(), new_vertex_coordinates,
                            gm, partitioner);

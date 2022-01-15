@@ -535,6 +535,12 @@ compute_refinement(
     }
   }
 
+  for (auto q : cell_topology)
+  {
+    if (q > 198121000 and q < 198175000)
+      LOG(INFO) << "Cell vtx: " << q;
+  }
+
   assert(cell_topology.size() % num_cell_vertices == 0);
   std::vector<std::int32_t> offsets(
       cell_topology.size() / num_cell_vertices + 1, 0);
@@ -542,12 +548,6 @@ compute_refinement(
     offsets[i + 1] = offsets[i] + num_cell_vertices;
   graph::AdjacencyList<std::int64_t> cell_adj(std::move(cell_topology),
                                               std::move(offsets));
-
-  for (auto q : cell_topology)
-  {
-    if (q > 198121000 and q < 198175000)
-      LOG(INFO) << "Cell vtx: " << q;
-  }
 
   return {std::move(cell_adj), std::move(new_vertex_coordinates),
           std::move(parent_cell)};
