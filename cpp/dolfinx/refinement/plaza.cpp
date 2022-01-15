@@ -465,6 +465,7 @@ compute_refinement(
 
     if (marked_edge_list.empty())
     {
+      LOG(INFO) << "No refinement";
       // Copy over existing Cell to new topology
       for (auto v : vertices)
         cell_topology.push_back(global_indices[v]);
@@ -483,6 +484,10 @@ compute_refinement(
         assert(it != new_vertex_map.end());
         indices[num_cell_vertices + p] = it->second;
       }
+
+      for (auto q : indices)
+        if (q > 198100000 and q < 198200000)
+          LOG(INFO) << "plaza index " << q;
 
       // Need longest edges of each face in cell local indexing. NB in
       // 2D the face is the cell itself, and there is just one entry.
