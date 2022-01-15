@@ -354,7 +354,7 @@ mesh::build_local_dual_graph(const xtl::span<const std::int64_t>& cell_vertices,
   const std::int32_t num_vertices = vcounter + 1;
 
   // Build local-to-global map for vertices
-  std::vector<int32_t> local_to_global_v(num_vertices);
+  std::vector<std::int64_t> local_to_global_v(num_vertices);
   for (std::size_t i = 0; i < cell_vertices_local.size(); i++)
     local_to_global_v[cell_vertices_local[i]] = cell_vertices[i];
 
