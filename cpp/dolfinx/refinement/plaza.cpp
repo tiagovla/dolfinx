@@ -515,12 +515,23 @@ compute_refinement(
 
       // Save parent index
       const std::int32_t ncells = simplex_set.size() / num_cell_vertices;
+      if (ncells != 8)
+        LOG(INFO) << "ncells = " << ncells;
+
       for (std::int32_t i = 0; i < ncells; ++i)
         parent_cell.push_back(c);
 
       // Convert from cell local index to mesh index and add to cells
       for (std::int32_t v : simplex_set)
         cell_topology.push_back(indices[v]);
+
+      if (std::find(indices.begin(), indices.end(), 198174678) != indices.end())
+      {
+        for (std::int64_t v : indices)
+          LOG(INFO) << "VSET:" << v;
+        for (std::int32_t v : simplex_set)
+          LOG(INFO) << "SSET:" << indices[v];
+      }
     }
   }
 
