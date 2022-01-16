@@ -47,14 +47,6 @@ compute_nonlocal_dual_graph(
   LOG(INFO) << "Build nonlocal part of mesh dual graph";
   common::Timer timer("Compute non-local part of mesh dual graph");
 
-  for (std::size_t i = 0; i < unmatched_facets.shape(0); ++i)
-    for (int j = 0; j < 3; ++j)
-    {
-      std::int64_t q = unmatched_facets(i, j);
-      if (q == 198174678 or q == 198174679 or q == 198121271)
-        LOG(INFO) << "IN_NONLOCAL_DG " << q;
-    }
-
   // Get number of MPI processes, and return if mesh is not distributed
   const int num_ranks = dolfinx::MPI::size(comm);
   if (num_ranks == 1)
@@ -136,9 +128,6 @@ compute_nonlocal_dual_graph(
     std::int64_t v0 = unmatched_facets(i, 0) - global_minmax[0];
     const int dest = dolfinx::MPI::index_owner(num_ranks, v0, global_range);
 
-    if (unmatched_facets(i, 0) == 198121271)
-      LOG(INFO) << "GRAPH_BUILD SEND 198121271 to " << dest;
-
     // Pack facet vertices, and attached cell local index
     xtl::span<std::int64_t> buffer = send_buffer.links(dest);
     for (int j = 0; j < max_num_vertices_per_facet + 1; ++j)
@@ -205,17 +194,6 @@ compute_nonlocal_dual_graph(
       if (last_equal)
       {
         LOG(ERROR) << "Found three identical facets in mesh (match process)";
-        const int ix = perm[i - 2];
-        auto facetx = recvd_buffer.links(ix);
-        LOG(ERROR) << "The vertices f-1 are: [" << facetx[0] << ", "
-                   << facetx[1] << ", " << facetx[2] << "] cell=" << facetx[3]
-                   << " on " << proc[ix];
-        LOG(ERROR) << "The vertices f0 are: [" << facet0[0] << ", " << facet0[1]
-                   << ", " << facet0[2] << "] cell=" << facet0[3] << " on "
-                   << proc[i0];
-        LOG(ERROR) << "The vertices f1 are: [" << facet1[0] << ", " << facet1[1]
-                   << ", " << facet1[2] << "] cell=" << facet1[3] << " on "
-                   << proc[i1];
         throw std::runtime_error("Inconsistent mesh data in GraphBuilder: "
                                  "found three identical facets");
       }

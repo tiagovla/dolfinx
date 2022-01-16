@@ -11,7 +11,6 @@
 #include "topologycomputation.h"
 #include "utils.h"
 #include <dolfinx/common/IndexMap.h>
-#include <dolfinx/common/log.h>
 #include <dolfinx/common/utils.h>
 #include <dolfinx/fem/CoordinateElement.h>
 #include <dolfinx/graph/AdjacencyList.h>
@@ -90,12 +89,6 @@ Mesh mesh::create_mesh(MPI_Comm comm,
   // contiguous.
   const graph::AdjacencyList<std::int64_t> cells_topology
       = mesh::extract_topology(element.cell_shape(), dof_layout, cells);
-
-  for (std::int64_t q : cells_topology.array())
-  {
-    if (q == 198174678 or q == 198174679 or q == 198121271)
-      LOG(INFO) << "IN_CREATE_MESH " << q;
-  }
 
   // Compute the destination rank for cells on this process via graph
   // partitioning. Always get the ghost cells via facet, though these
@@ -222,9 +215,8 @@ mesh::create_submesh(const Mesh& mesh, int dim,
   std::vector<std::int32_t> submesh_owned_entities;
   std::copy_if(entities.begin(), entities.end(),
                std::back_inserter(submesh_owned_entities),
-               [mesh_entity_index_map](std::int32_t e) {
-                 return e < mesh_entity_index_map->size_local();
-               });
+               [mesh_entity_index_map](std::int32_t e)
+               { return e < mesh_entity_index_map->size_local(); });
 
   // Create submesh entity index map
   // TODO Call dolfinx::common::get_owned_indices here? Do we want to
@@ -302,13 +294,12 @@ mesh::create_submesh(const Mesh& mesh, int dim,
                                                  submesh_owned_x_dofs.end());
   submesh_to_mesh_x_dof_map.reserve(submesh_x_dof_index_map->size_local()
                                     + submesh_x_dof_index_map->num_ghosts());
-  std::transform(submesh_x_dof_index_map_pair.second.begin(),
-                 submesh_x_dof_index_map_pair.second.end(),
-                 std::back_inserter(submesh_to_mesh_x_dof_map),
-                 [mesh_geometry_dof_index_map](std::int32_t x_dof_index) {
-                   return mesh_geometry_dof_index_map->size_local()
-                          + x_dof_index;
-                 });
+  std::transform(
+      submesh_x_dof_index_map_pair.second.begin(),
+      submesh_x_dof_index_map_pair.second.end(),
+      std::back_inserter(submesh_to_mesh_x_dof_map),
+      [mesh_geometry_dof_index_map](std::int32_t x_dof_index)
+      { return mesh_geometry_dof_index_map->size_local() + x_dof_index; });
 
   // Create submesh geometry coordinates
   xtl::span<const double> mesh_x = mesh.geometry().x();
@@ -357,11 +348,11 @@ mesh::create_submesh(const Mesh& mesh, int dim,
       = mesh.geometry().input_global_indices();
   std::vector<std::int64_t> submesh_igi;
   submesh_igi.reserve(submesh_to_mesh_x_dof_map.size());
-  std::transform(
-      submesh_to_mesh_x_dof_map.begin(), submesh_to_mesh_x_dof_map.end(),
-      std::back_inserter(submesh_igi), [&mesh_igi](std::int32_t submesh_x_dof) {
-        return mesh_igi[submesh_x_dof];
-      });
+  std::transform(submesh_to_mesh_x_dof_map.begin(),
+                 submesh_to_mesh_x_dof_map.end(),
+                 std::back_inserter(submesh_igi),
+                 [&mesh_igi](std::int32_t submesh_x_dof)
+                 { return mesh_igi[submesh_x_dof]; });
 
   // Create geometry
   mesh::Geometry submesh_geometry(

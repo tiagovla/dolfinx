@@ -6,7 +6,6 @@
 
 #include "utils.h"
 #include <dolfinx/common/MPI.h>
-#include <dolfinx/common/log.h>
 #include <dolfinx/fem/ElementDofLayout.h>
 #include <dolfinx/mesh/Geometry.h>
 #include <dolfinx/mesh/Mesh.h>
@@ -143,14 +142,6 @@ refinement::compute_edge_sharing(const mesh::Mesh& mesh)
     all_neighbor_set.insert(q.second.begin(), q.second.end());
   std::vector<int> neighbors(all_neighbor_set.begin(), all_neighbor_set.end());
 
-  // Log neighbors via edge
-  std::stringstream s;
-  s << "Edge neighbors=[";
-  for (int nbr : neighbors)
-    s << nbr << " ";
-  s << "]";
-  LOG(INFO) << s.str();
-
   MPI_Comm neighbor_comm;
   MPI_Dist_graph_create_adjacent(
       mesh.comm(), neighbors.size(), neighbors.data(), MPI_UNWEIGHTED,
@@ -221,7 +212,7 @@ refinement::create_new_vertices(
   const std::shared_ptr<const common::IndexMap> edge_index_map
       = mesh.topology().index_map(1);
 
-  // Add new edge midpoints to list of vertices, numbered from zero.
+  // Add new edge midpoints to list of vertices
   int n = 0;
   std::map<std::int32_t, std::int64_t> local_edge_to_new_vertex;
   for (int local_i = 0; local_i < edge_index_map->size_local(); ++local_i)
@@ -234,7 +225,6 @@ refinement::create_new_vertices(
     }
   }
 
-  // Add offset to vertex number, so they appear at the end of the local range.
   const std::int64_t num_local = n;
   std::int64_t global_offset = 0;
   MPI_Exscan(&num_local, &global_offset, 1,
@@ -243,9 +233,6 @@ refinement::create_new_vertices(
   std::for_each(local_edge_to_new_vertex.begin(),
                 local_edge_to_new_vertex.end(),
                 [global_offset](auto& e) { e.second += global_offset; });
-
-  LOG(INFO) << "Creating new vertices in range: [" << global_offset << " - "
-            << global_offset + num_local << "]";
 
   // Create actual points
   xt::xtensor<double, 2> new_vertex_coordinates
@@ -301,12 +288,6 @@ refinement::create_new_vertices(
     assert(it.second);
   }
 
-  for (auto q : local_edge_to_new_vertex)
-  {
-    if (q.second > 198100000 and q.second < 198200000)
-      LOG(INFO) << "New vertex " << q.second << " on edge " << q.first << "\n";
-  }
-
   return {std::move(local_edge_to_new_vertex),
           std::move(new_vertex_coordinates)};
 }
@@ -327,12 +308,13 @@ refinement::partition(const mesh::Mesh& old_mesh,
 
   auto partitioner = [](MPI_Comm comm, int, int tdim,
                         const graph::AdjacencyList<std::int64_t>& cell_topology,
-                        mesh::GhostMode) {
+                        mesh::GhostMode)
+  {
     // Find out the ghosting information
     auto [graph, _] = mesh::build_dual_graph(comm, cell_topology, tdim);
 
-    // FIXME: much of this is reverse engineering of data that is
-    // already known in the GraphBuilder
+    // FIXME: much of this is reverse engineering of data that is already
+    // known in the GraphBuilder
 
     const int mpi_size = MPI::size(comm);
     const int mpi_rank = MPI::rank(comm);
@@ -347,8 +329,8 @@ refinement::partition(const mesh::Mesh& old_mesh,
       local_offsets[i + 1] = local_offsets[i] + local_sizes[i];
 
     // All cells should go to their currently assigned ranks (no change)
-    // but must also be sent to their ghost destinations, which are
-    // determined here.
+    // but must also be sent to their ghost destinations, which are determined
+    // here.
     std::vector<std::int32_t> destinations;
     destinations.reserve(graph.num_nodes());
     std::vector<std::int32_t> dest_offsets = {0};
@@ -380,12 +362,6 @@ refinement::partition(const mesh::Mesh& old_mesh,
                                               std::move(dest_offsets));
   };
 
-  for (std::int64_t q : cell_topology.array())
-  {
-    if (q == 198174678 or q == 198174679 or q == 198121271)
-      LOG(INFO) << "into CREATE_MESH " << q;
-  }
-
   return mesh::create_mesh(old_mesh.comm(), cell_topology,
                            old_mesh.geometry().cmap(), new_vertex_coordinates,
                            gm, partitioner);
@@ -401,11 +377,11 @@ refinement::adjust_indices(const common::IndexMap& index_map, std::int32_t n)
   MPI_Comm comm = index_map.comm();
   int mpi_size = dolfinx::MPI::size(comm);
   int mpi_rank = dolfinx::MPI::rank(comm);
-  std::vector<std::int32_t> recvn(mpi_size + 1, 0);
-  MPI_Allgather(&n, 1, MPI_INT32_T, recvn.data() + 1, 1, MPI_INT32_T, comm);
-  std::vector<std::int64_t> global_offsets(recvn.begin(), recvn.end());
-  std::partial_sum(global_offsets.begin(), global_offsets.end(),
-                   global_offsets.begin());
+  std::vector<std::int32_t> recvn(mpi_size);
+  MPI_Allgather(&n, 1, MPI_INT32_T, recvn.data(), 1, MPI_INT32_T, comm);
+  std::vector<std::int64_t> global_offsets = {0};
+  for (std::int32_t r : recvn)
+    global_offsets.push_back(global_offsets.back() + r);
 
   std::vector global_indices = index_map.global_indices();
 
@@ -415,11 +391,6 @@ refinement::adjust_indices(const common::IndexMap& index_map, std::int32_t n)
     global_indices[i] += global_offsets[mpi_rank];
   for (std::size_t i = 0; i < ghost_owners.size(); ++i)
     global_indices[local_size + i] += global_offsets[ghost_owners[i]];
-
-  LOG(INFO) << "Index adjustment: [" << index_map.local_range()[0] << "-"
-            << index_map.local_range()[1] << "] -> ["
-            << index_map.local_range()[0] + global_offsets[mpi_rank] << "-"
-            << index_map.local_range()[1] + global_offsets[mpi_rank + 1] << "]";
 
   return global_indices;
 }
