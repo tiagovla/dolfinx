@@ -38,6 +38,7 @@ determine_sharing_ranks(MPI_Comm comm,
 {
   const int mpi_size = dolfinx::MPI::size(comm);
 
+  LOG(INFO) << "Sharing ranks: send to PO";
   // Create a global address space to use with all_to_all post-office
   // algorithm and find the owner of each index within that space
   std::int64_t global_space = 0;
@@ -59,6 +60,7 @@ determine_sharing_ranks(MPI_Comm comm,
       = dolfinx::MPI::all_to_all(
           comm, graph::AdjacencyList<std::int64_t>(send_indices));
 
+  LOG(INFO) << "Sharing ranks: get owner and shared at PO";
   // Get index sharing - ownership will be first entry (randomised later)
   std::unordered_map<std::int64_t, std::vector<int>> index_to_owner;
   for (int p = 0; p < recv_indices.num_nodes(); ++p)
@@ -76,6 +78,7 @@ determine_sharing_ranks(MPI_Comm comm,
     std::shuffle(procs.begin(), procs.end(), g);
   }
 
+  LOG(INFO) << "Sharing ranks: send back";
   // Send index ownership data back to all sharing processes
   std::vector<std::vector<int>> send_owner(mpi_size);
   for (int p = 0; p < recv_indices.num_nodes(); ++p)
@@ -97,6 +100,7 @@ determine_sharing_ranks(MPI_Comm comm,
   const graph::AdjacencyList<int> recv_owner
       = dolfinx::MPI::all_to_all(comm, graph::AdjacencyList<int>(send_owner));
 
+  LOG(INFO) << "Sharing ranks: fill local data";
   // Now fill index_to_owner with locally needed indices
   index_to_owner.clear();
   for (int p = 0; p < mpi_size; ++p)
@@ -638,6 +642,7 @@ mesh::create_topology(MPI_Comm comm,
 
   // Iterate over vertices that have 'unknown' ownership, and if flagged
   // as owned by determine_sharing_ranks update ownership status
+  LOG(INFO) << "Topology: update ownership";
   const int mpi_rank = dolfinx::MPI::rank(comm);
   for (std::int64_t global_index : unknown_indices_set)
   {
@@ -658,6 +663,7 @@ mesh::create_topology(MPI_Comm comm,
     }
   }
 
+  LOG(INFO) << "Topology: number owned vertices";
   // Number all owned vertices, iterating over vertices cell-wise
   std::int32_t v = 0;
   for (std::int32_t c = 0; c < cells.num_nodes(); ++c)
@@ -762,6 +768,7 @@ mesh::create_topology(MPI_Comm comm,
 
   // Create Topology object
 
+  LOG(INFO) << "Topology: create";
   Topology topology(comm, cell_type);
   const int tdim = topology.dim();
 
