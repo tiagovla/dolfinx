@@ -59,7 +59,7 @@ determine_sharing_ranks(MPI_Comm comm,
   std::partial_sum(send_sizes.begin(), send_sizes.end(),
                    std::next(send_offsets.begin()));
 
-  std::vector<std::int64_t> send_indices(mpi_size);
+  std::vector<std::int64_t> send_indices(send_offsets.back());
   for (std::int64_t global_i : unknown_idx)
   {
     const int index_owner
