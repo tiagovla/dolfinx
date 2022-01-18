@@ -159,10 +159,10 @@ compute_vertex_markers(const graph::AdjacencyList<std::int64_t>& cells,
 
   // Any vertices which are in ghost cells set to -1
   std::unordered_map<std::int64_t, std::int32_t> global_to_local_v;
-  std::transform(ghost_vertex_set.begin(), ghost_vertex_set.end(),
-                 std::inserter(global_to_local_v, global_to_local_v.end()),
-                 [](auto idx)
-                 { return std::pair<std::int64_t, std::int32_t>(idx, -1); });
+  std::transform(
+      ghost_vertex_set.begin(), ghost_vertex_set.end(),
+      std::inserter(global_to_local_v, global_to_local_v.end()),
+      [](auto idx) { return std::pair<std::int64_t, std::int32_t>(idx, -1); });
 
   std::vector<std::int64_t> unknown_indices_set;
   for (std::int64_t global_index : local_vertex_set)
@@ -204,10 +204,11 @@ compute_neighbor_comm(const MPI_Comm& comm,
   // Create set of all ranks that share a vertex with this rank. Note
   // this can be 'wider' than the neighbor comm of shared cells.
   std::vector<int> neighbors;
-  std::for_each(
-      global_vertex_to_ranks.begin(), global_vertex_to_ranks.end(),
-      [&neighbors](auto& q)
-      { neighbors.insert(neighbors.end(), q.second.begin(), q.second.end()); });
+  std::for_each(global_vertex_to_ranks.begin(), global_vertex_to_ranks.end(),
+                [&neighbors](auto& q) {
+                  neighbors.insert(neighbors.end(), q.second.begin(),
+                                   q.second.end());
+                });
   std::sort(neighbors.begin(), neighbors.end());
   neighbors.erase(std::unique(neighbors.begin(), neighbors.end()),
                   neighbors.end());
@@ -402,8 +403,9 @@ graph::AdjacencyList<std::int32_t> convert_cells_to_local_indexing(
   std::transform(cells.array().begin(),
                  std::next(cells.array().begin(), cells_array_local.size()),
                  cells_array_local.begin(),
-                 [&global_to_local_vertices](std::int64_t i)
-                 { return global_to_local_vertices.at(i); });
+                 [&global_to_local_vertices](std::int64_t i) {
+                   return global_to_local_vertices.at(i);
+                 });
 
   return graph::AdjacencyList<std::int32_t>(std::move(cells_array_local),
                                             std::move(local_offsets));
@@ -622,6 +624,7 @@ mesh::create_topology(MPI_Comm comm,
   //
   // and a list of vertices whose ownership needs determining (vertices
   // that are attached to both owned and ghost cells)
+  LOG(INFO) << "Topology: compute vertex markers";
   auto [global_to_local_vertices, unknown_indices_set]
       = compute_vertex_markers(cells, num_local_cells);
 
@@ -629,6 +632,7 @@ mesh::create_topology(MPI_Comm comm,
   // unknown_indices_set), compute the list of sharing ranks. The first
   // index in the vector of ranks is the owner as determined by this
   // function.
+  LOG(INFO) << "Topology: determine sharing ranks";
   std::unordered_map<std::int64_t, std::vector<int>> global_vertex_to_ranks
       = determine_sharing_ranks(comm, unknown_indices_set);
 
@@ -675,6 +679,7 @@ mesh::create_topology(MPI_Comm comm,
 
   // Create neighborhood communicator for vertices on the 'true'
   // boundary and a map from MPI rank on comm to rank on neighbor_comm
+  LOG(INFO) << "Topology: compute neighbor comm";
   auto [neighbor_comm, global_to_neighbor_rank]
       = compute_neighbor_comm(comm, global_vertex_to_ranks);
 
@@ -731,6 +736,7 @@ mesh::create_topology(MPI_Comm comm,
 
   MPI_Comm_free(&neighbor_comm);
 
+  LOG(INFO) << "Topology: convert to local index";
   // TODO: is it possible to build neighbourhood communictor that is
   // larger than neighbor_comm to capture all ghost owners?
 

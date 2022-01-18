@@ -7,6 +7,7 @@
 #include "Geometry.h"
 #include "Topology.h"
 #include <dolfinx/common/IndexMap.h>
+#include <dolfinx/common/log.h>
 #include <dolfinx/common/sort.h>
 #include <dolfinx/fem/ElementDofLayout.h>
 #include <dolfinx/fem/dofmapbuilder.h>
@@ -53,6 +54,7 @@ mesh::Geometry mesh::create_geometry(
   // TODO: make sure required entities are initialised, or extend
   // fem::build_dofmap_data
 
+  LOG(INFO) << "Create geometry";
   //  Build 'geometry' dofmap on the topology
   auto [_dof_index_map, bs, dofmap] = fem::build_dofmap_data(
       comm, topology, coordinate_element.create_dof_layout(), reorder_fn);
