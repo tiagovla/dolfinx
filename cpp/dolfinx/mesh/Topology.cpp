@@ -48,17 +48,36 @@ determine_sharing_ranks(MPI_Comm comm,
   MPI_Allreduce(&max_index, &global_space, 1, MPI_INT64_T, MPI_SUM, comm);
   global_space += 1;
 
-  std::vector<std::vector<std::int64_t>> send_indices(mpi_size);
+  std::vector<std::int32_t> send_sizes(mpi_size);
+  std::vector<std::int32_t> send_offsets(mpi_size + 1, 0);
   for (std::int64_t global_i : unknown_idx)
   {
     const int index_owner
         = dolfinx::MPI::index_owner(mpi_size, global_i, global_space);
-    send_indices[index_owner].push_back(global_i);
+    send_sizes[index_owner]++;
   }
+  std::partial_sum(send_sizes.begin(), send_sizes.end(),
+                   std::next(send_offsets.begin()));
+
+  std::vector<std::int64_t> send_indices(mpi_size);
+  for (std::int64_t global_i : unknown_idx)
+  {
+    const int index_owner
+        = dolfinx::MPI::index_owner(mpi_size, global_i, global_space);
+    send_indices[send_offsets[index_owner]] = global_i;
+    send_offsets[index_owner]++;
+  }
+  // Reset offsets
+  send_offsets[0] = 0;
+  std::partial_sum(send_sizes.begin(), send_sizes.end(),
+                   std::next(send_offsets.begin()));
+
+  LOG(INFO) << "Sending " << send_indices.size() << " indices";
+  const graph::AdjacencyList<std::int64_t> send_index_adj(
+      std::move(send_indices), std::move(send_offsets));
 
   const graph::AdjacencyList<std::int64_t> recv_indices
-      = dolfinx::MPI::all_to_all(
-          comm, graph::AdjacencyList<std::int64_t>(send_indices));
+      = dolfinx::MPI::all_to_all(comm, send_index_adj);
 
   LOG(INFO) << "Sharing ranks: get owner and shared at PO";
   // Get index sharing - ownership will be first entry (randomised later)
@@ -100,12 +119,14 @@ determine_sharing_ranks(MPI_Comm comm,
   const graph::AdjacencyList<int> recv_owner
       = dolfinx::MPI::all_to_all(comm, graph::AdjacencyList<int>(send_owner));
 
+  LOG(INFO) << "Received " << recv_owner.array().size() << " owner data";
+
   LOG(INFO) << "Sharing ranks: fill local data";
   // Now fill index_to_owner with locally needed indices
   index_to_owner.clear();
   for (int p = 0; p < mpi_size; ++p)
   {
-    const std::vector<std::int64_t>& send_v = send_indices[p];
+    xtl::span<const std::int64_t> send_v = send_index_adj.links(p);
     auto r_owner = recv_owner.links(p);
     std::size_t c(0), i(0);
     while (c < r_owner.size())
