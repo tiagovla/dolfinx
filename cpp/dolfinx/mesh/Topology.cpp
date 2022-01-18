@@ -37,6 +37,7 @@ determine_sharing_ranks(MPI_Comm comm,
                         const xtl::span<const std::int64_t>& unknown_idx)
 {
   const int mpi_size = dolfinx::MPI::size(comm);
+  // const int mpi_rank = dolfinx::MPI::rank(comm);
 
   LOG(INFO) << "Sharing ranks: send to PO";
   // Create a global address space to use with all_to_all post-office
@@ -45,7 +46,7 @@ determine_sharing_ranks(MPI_Comm comm,
   std::int64_t max_index = 0;
   if (!unknown_idx.empty())
     max_index = *std::max_element(unknown_idx.begin(), unknown_idx.end());
-  MPI_Allreduce(&max_index, &global_space, 1, MPI_INT64_T, MPI_SUM, comm);
+  MPI_Allreduce(&max_index, &global_space, 1, MPI_INT64_T, MPI_MAX, comm);
   global_space += 1;
 
   std::vector<std::int32_t> send_sizes(mpi_size);
@@ -81,6 +82,8 @@ determine_sharing_ranks(MPI_Comm comm,
 
   LOG(INFO) << "Sharing ranks: get owner and shared at PO";
   // Get index sharing - ownership will be first entry (randomised later)
+  // local_range = dolfinx::MPI::local_range(mpi_rank, N, mpi_size);
+  
   std::unordered_map<std::int64_t, std::vector<int>> index_to_owner;
   for (int p = 0; p < recv_indices.num_nodes(); ++p)
   {
