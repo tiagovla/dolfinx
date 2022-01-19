@@ -1,91 +1,4 @@
-// Poisson equation (C++)
-// ======================
-//
-// This demo illustrates how to:
-//
-// * Solve a linear partial differential equation
-// * Create and apply Dirichlet boundary conditions
-// * Define Expressions
-// * Define a FunctionSpace
-//
-// The solution for :math:`u` in this demo will look as follows:
-//
-// .. image:: ../poisson_u.png
-//     :scale: 75 %
-//
-//
-// Equation and problem definition
-// -------------------------------
-//
-// The Poisson equation is the canonical elliptic partial differential
-// equation.  For a domain :math:`\Omega \subset \mathbb{R}^n` with
-// boundary :math:`\partial \Omega = \Gamma_{D} \cup \Gamma_{N}`, the
-// Poisson equation with particular boundary conditions reads:
-//
-// .. math::
-//    - \nabla^{2} u &= f \quad {\rm in} \ \Omega, \\
-//      u &= 0 \quad {\rm on} \ \Gamma_{D}, \\
-//      \nabla u \cdot n &= g \quad {\rm on} \ \Gamma_{N}. \\
-//
-// Here, :math:`f` and :math:`g` are input data and :math:`n` denotes the
-// outward directed boundary normal. The most standard variational form
-// of Poisson equation reads: find :math:`u \in V` such that
-//
-// .. math::
-//    a(u, v) = L(v) \quad \forall \ v \in V,
-//
-// where :math:`V` is a suitable function space and
-//
-// .. math::
-//    a(u, v) &= \int_{\Omega} \nabla u \cdot \nabla v \, {\rm d} x, \\
-//    L(v)    &= \int_{\Omega} f v \, {\rm d} x
-//    + \int_{\Gamma_{N}} g v \, {\rm d} s.
-//
-// The expression :math:`a(u, v)` is the bilinear form and :math:`L(v)`
-// is the linear form. It is assumed that all functions in :math:`V`
-// satisfy the Dirichlet boundary conditions (:math:`u = 0 \ {\rm on} \
-// \Gamma_{D}`).
-//
-// In this demo, we shall consider the following definitions of the input
-// functions, the domain, and the boundaries:
-//
-// * :math:`\Omega = [0,1] \times [0,1]` (a unit square)
-// * :math:`\Gamma_{D} = \{(0, y) \cup (1, y) \subset \partial \Omega\}`
-// (Dirichlet boundary)
-// * :math:`\Gamma_{N} = \{(x, 0) \cup (x, 1) \subset \partial \Omega\}`
-// (Neumann boundary)
-// * :math:`g = \sin(5x)` (normal derivative)
-// * :math:`f = 10\exp(-((x - 0.5)^2 + (y - 0.5)^2) / 0.02)` (source term)
-//
-//
-// Implementation
-// --------------
-//
-// The implementation is split in two files: a form file containing the
-// definition of the variational forms expressed in UFL and a C++ file
-// containing the actual solver.
-//
-// Running this demo requires the files: :download:`main.cpp`,
-// :download:`Poisson.ufl` and :download:`CMakeLists.txt`.
-//
-//
-// UFL form file
-// ^^^^^^^^^^^^^
-//
-// The UFL file is implemented in :download:`Poisson.ufl`, and the
-// explanation of the UFL file can be found at :doc:`here <Poisson.ufl>`.
-//
-//
-// C++ program
-// ^^^^^^^^^^^
-//
-// The main solver is implemented in the :download:`main.cpp` file.
-//
-// At the top we include the DOLFINx header file and the generated header
-// file "Poisson.h" containing the variational forms for the Poisson
-// equation.  For convenience we also include the DOLFINx namespace.
-//
-// .. code-block:: cpp
+
 
 #include "poisson.h"
 #include <cmath>
@@ -96,22 +9,86 @@
 #include <xtensor/xview.hpp>
 
 using namespace dolfinx;
+
+namespace
+{
+/// Compute vector r = alpha*x + y
+/// @param r Result
+/// @param alpha
+/// @param x
+/// @param y
+template <typename T>
+void axpy(la::Vector<T>& r, T alpha, const la::Vector<T>& x,
+          const la::Vector<T>& y)
+{
+  std::transform(x.array().cbegin(), x.array().cbegin() + x.map()->size_local(),
+                 y.array().cbegin(), r.mutable_array().begin(),
+                 [&alpha](const T& vx, const T& vy)
+                 { return vx * alpha + vy; });
+}
+
+/// Solve problem A.x = b with Conjugate Gradient method
+/// @param b RHS Vector
+/// @param x Solution Vector
+/// @param matvec_function Function that provides the operator action
+/// @param kmax Maxmimum number of iterations
+template <typename T>
+int cg(la::Vector<T>& x, const la::Vector<T>& b,
+       std::function<void(la::Vector<T>&, la::Vector<T>&)> matvec_function,
+       int kmax = 50, double rtol = 1e-8)
+{
+  int M = b.map()->size_local();
+
+  // Residual vector
+  la::Vector<T> r(b); // or b - A.x0
+  la::Vector<T> y(b);
+  la::Vector<T> p(x);
+  std::copy(r.array().begin(), r.array().begin() + M,
+            p.mutable_array().begin());
+
+  double rnorm0 = r.squared_norm();
+
+  // Iterations of CG
+  const double rtol2 = rtol * rtol;
+  double rnorm = rnorm0;
+  int k = 0;
+  while (k < kmax)
+  {
+    ++k;
+
+    // MatVec
+    // y = A.p;
+    matvec_function(p, y);
+
+    // Calculate alpha = r.r/p.y
+    const double alpha = rnorm / la::inner_product(p, y);
+
+    // Update x and r
+    // x = x + alpha*p
+    axpy(x, alpha, p, x);
+
+    // r = r - alpha*y
+    axpy(r, -alpha, y, r);
+
+    // Update rnorm
+    const double rnorm_new = r.squared_norm();
+    const double beta = rnorm_new / rnorm;
+    rnorm = rnorm_new;
+
+    std::cout << "it " << k << ": " << std::sqrt(rnorm / rnorm0) << std::endl;
+
+    if (rnorm / rnorm0 < rtol2)
+      break;
+
+    // Update p.
+    // p = beta*p + r
+    axpy(p, beta, p, r);
+  }
+  return k;
+}
+} // namespace
+
 using T = PetscScalar;
-
-// Then follows the definition of the coefficient functions (for
-// :math:`f` and :math:`g`), which are derived from the
-// :cpp:class:`Expression` class in DOLFINx
-//
-// .. code-block:: cpp
-
-// Inside the ``main`` function, we begin by defining a mesh of the
-// domain. As the unit square is a very standard domain, we can use a
-// built-in mesh provided by the :cpp:class:`UnitSquareMesh` factory. In
-// order to create a mesh consisting of 32 x 32 squares with each square
-// divided into two triangles, and the finite element space (specified in
-// the form file) defined relative to this mesh, we do as follows
-//
-// .. code-block:: cpp
 
 int main(int argc, char* argv[])
 {
@@ -179,17 +156,8 @@ int main(int argc, char* argv[])
           return 10 * xt::exp(-(dx) / 0.02);
         });
 
-    g->interpolate([](auto& x) -> xt::xarray<T>
-                   { return xt::sin(5 * xt::row(x, 0)); });
-
-    // Now, we have specified the variational forms and can consider the
-    // solution of the variational problem. First, we need to define a
-    // :cpp:class:`Function` ``u`` to store the solution. (Upon
-    // initialization, it is simply set to the zero function.) Next, we can
-    // call the ``solve`` function with the arguments ``a == L``, ``u`` and
-    // ``bc`` as follows:
-    //
-    // .. code-block:: cpp
+    g->interpolate(
+        [](auto& x) -> xt::xarray<T> { return xt::sin(5 * xt::row(x, 0)); });
 
     // Compute solution
     fem::Function<T> u(V);
@@ -213,22 +181,33 @@ int main(int argc, char* argv[])
     b.scatter_rev(common::IndexMap::Mode::add);
     fem::set_bc(b.mutable_array(), {bc});
 
-    la::petsc::KrylovSolver lu(MPI_COMM_WORLD);
-    la::petsc::options::set("ksp_type", "preonly");
-    la::petsc::options::set("pc_type", "lu");
-    lu.set_from_options();
+    auto&& dof_ghosts = V->dofmap()->index_map->ghosts();
+    std::vector<PetscInt> ghosts(dof_ghosts.begin(), dof_ghosts.end());
 
-    lu.set_operator(A.mat());
-    la::petsc::Vector _u(la::petsc::create_vector_wrap(*u.x()), false);
-    la::petsc::Vector _b(la::petsc::create_vector_wrap(b), false);
-    lu.solve(_u.vec(), _b.vec());
+    std::function<void(la::Vector<T>&, la::Vector<T>&)> matvec
+        = [&ghosts, &A](la::Vector<T>& x, la::Vector<T>& y)
+    {
+      const PetscInt local_size = x.map()->size_local();
+      const PetscInt global_size = x.map()->size_global();
+      const PetscInt num_ghosts = ghosts.size();
+      const PetscInt* ghosts_ptr = ghosts.data();
 
-    // The function ``u`` will be modified during the call to solve. A
-    // :cpp:class:`Function` can be saved to a file. Here, we output the
-    // solution to a ``VTK`` file (specified using the suffix ``.pvd``) for
-    // visualisation in an external program such as Paraview.
-    //
-    // .. code-block:: cpp
+      MPI_Comm comm = x.map()->comm(common::IndexMap::Direction::forward);
+
+      Vec _x_petsc = nullptr;
+      Vec _y_petsc = nullptr;
+
+      // Creates a parallel vector with ghost padding on each processor
+      VecCreateGhostWithArray(comm, local_size, global_size, num_ghosts,
+                              ghosts_ptr, x.array().data(), &_x_petsc);
+      VecCreateGhostWithArray(comm, local_size, global_size, num_ghosts,
+                              ghosts_ptr, y.mutable_array().data(), &_y_petsc);
+
+      // Actual matrix vector multiplication
+      MatMult(A.mat(), _x_petsc, _y_petsc);
+    };
+
+    cg(*u.x(), b, matvec, 100, 1e-6);
 
     // Save solution in VTK format
     io::VTKFile file(MPI_COMM_WORLD, "u.pvd", "w");
