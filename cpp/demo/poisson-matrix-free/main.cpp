@@ -1,16 +1,24 @@
-
+// Copyright (C) 2022 Igor A. Baratta
+//
+// This file is part of DOLFINx (https://www.fenicsproject.org)
+//
+// SPDX-License-Identifier:    LGPL-3.0-or-later
 
 #include "poisson.h"
+
 #include <cmath>
 #include <dolfinx.h>
 #include <dolfinx/fem/Constant.h>
 #include <dolfinx/fem/petsc.h>
+#include <dolfinx/la/MatrixCSR.h>
 #include <xtensor/xarray.hpp>
 #include <xtensor/xview.hpp>
 
 using namespace dolfinx;
 
-namespace
+using T = PetscScalar;
+
+namespace linalg
 {
 /// Compute vector r = alpha*x + y
 /// @param r Result
@@ -38,6 +46,8 @@ int cg(la::Vector<T>& x, const la::Vector<T>& b,
        int kmax = 50, double rtol = 1e-8)
 {
   int M = b.map()->size_local();
+  MPI_Comm comm = b.map()->comm(common::IndexMap::Direction::forward);
+  int rank = dolfinx::MPI::rank(comm);
 
   // Residual vector
   la::Vector<T> r(b); // or b - A.x0
@@ -75,7 +85,8 @@ int cg(la::Vector<T>& x, const la::Vector<T>& b,
     const double beta = rnorm_new / rnorm;
     rnorm = rnorm_new;
 
-    std::cout << "it " << k << ": " << std::sqrt(rnorm / rnorm0) << std::endl;
+    if (rank == 0)
+      std::cout << "it " << k << ": " << std::sqrt(rnorm / rnorm0) << std::endl;
 
     if (rnorm / rnorm0 < rtol2)
       break;
@@ -86,9 +97,7 @@ int cg(la::Vector<T>& x, const la::Vector<T>& b,
   }
   return k;
 }
-} // namespace
-
-using T = PetscScalar;
+} // namespace linalg
 
 int main(int argc, char* argv[])
 {
@@ -104,14 +113,6 @@ int main(int argc, char* argv[])
     auto V = std::make_shared<fem::FunctionSpace>(
         fem::create_functionspace(functionspace_form_poisson_a, "u", mesh));
 
-    // Next, we define the variational formulation by initializing the
-    // bilinear and linear forms (:math:`a`, :math:`L`) using the previously
-    // defined :cpp:class:`FunctionSpace` ``V``.  Then we can create the
-    // source and boundary flux term (:math:`f`, :math:`g`) and attach these
-    // to the linear form.
-    //
-    // .. code-block:: cpp
-
     // Prepare and set Constants for the bilinear form
     auto kappa = std::make_shared<fem::Constant<T>>(2.0);
     auto f = std::make_shared<fem::Function<T>>(V);
@@ -123,20 +124,10 @@ int main(int argc, char* argv[])
     auto L = std::make_shared<fem::Form<T>>(fem::create_form<T>(
         *form_poisson_L, {V}, {{"f", f}, {"g", g}}, {}, {}));
 
-    // Now, the Dirichlet boundary condition (:math:`u = 0`) can be created
-    // using the class :cpp:class:`DirichletBC`. A :cpp:class:`DirichletBC`
-    // takes two arguments: the value of the boundary condition,
-    // and the part of the boundary on which the condition applies.
-    // In our example, the value of the boundary condition (0.0) can
-    // represented using a :cpp:class:`Function`, and the Dirichlet boundary
-    // is defined by the indices of degrees of freedom to which the boundary
-    // condition applies.
-    // The definition of the Dirichlet boundary condition then looks
-    // as follows:
-    //
-    // .. code-block:: cpp
-
-    // Define boundary condition
+    // Action of the bilinear form "a" to a function ui
+    auto ui = std::make_shared<fem::Function<T>>(V);
+    auto M = std::make_shared<fem::Form<T>>(fem::create_form<T>(
+        *form_poisson_M, {V}, {{"ui", ui}}, {{"kappa", kappa}}, {}));
 
     auto facets = mesh::locate_entities_boundary(
         *mesh, 1,
@@ -161,53 +152,40 @@ int main(int argc, char* argv[])
 
     // Compute solution
     fem::Function<T> u(V);
-    auto A = la::petsc::Matrix(fem::petsc::create_matrix(*a), false);
     la::Vector<T> b(L->function_spaces()[0]->dofmap()->index_map,
                     L->function_spaces()[0]->dofmap()->index_map_bs());
 
-    MatZeroEntries(A.mat());
-    fem::assemble_matrix(la::petsc::Matrix::set_block_fn(A.mat(), ADD_VALUES),
-                         *a, {bc});
-    MatAssemblyBegin(A.mat(), MAT_FLUSH_ASSEMBLY);
-    MatAssemblyEnd(A.mat(), MAT_FLUSH_ASSEMBLY);
-    fem::set_diagonal(la::petsc::Matrix::set_fn(A.mat(), INSERT_VALUES), *V,
-                      {bc});
-    MatAssemblyBegin(A.mat(), MAT_FINAL_ASSEMBLY);
-    MatAssemblyEnd(A.mat(), MAT_FINAL_ASSEMBLY);
-
+    // Assemble RHS
     b.set(0.0);
     fem::assemble_vector(b.mutable_array(), *L);
     fem::apply_lifting(b.mutable_array(), {a}, {{bc}}, {}, 1.0);
     b.scatter_rev(common::IndexMap::Mode::add);
     fem::set_bc(b.mutable_array(), {bc});
 
-    auto&& dof_ghosts = V->dofmap()->index_map->ghosts();
-    std::vector<PetscInt> ghosts(dof_ghosts.begin(), dof_ghosts.end());
-
-    std::function<void(la::Vector<T>&, la::Vector<T>&)> matvec
-        = [&ghosts, &A](la::Vector<T>& x, la::Vector<T>& y)
+    std::function<void(la::Vector<T>&, la::Vector<T>&)> action
+        = [&](la::Vector<T>& x, la::Vector<T>& y)
     {
-      const PetscInt local_size = x.map()->size_local();
-      const PetscInt global_size = x.map()->size_global();
-      const PetscInt num_ghosts = ghosts.size();
-      const PetscInt* ghosts_ptr = ghosts.data();
+      // Update ghost values
+      x.scatter_fwd();
 
-      MPI_Comm comm = x.map()->comm(common::IndexMap::Direction::forward);
+      y.set(0);
+      auto x_array = x.array();
+      auto y_array = y.mutable_array();
 
-      Vec _x_petsc = nullptr;
-      Vec _y_petsc = nullptr;
+      // Update coefficient ui, just copy data from x to ui
+      // TODO: Create interface to update coefficients
+      std::copy(x_array.begin(), x_array.end(),
+                ui->x()->mutable_array().begin());
 
-      // Creates a parallel vector with ghost padding on each processor
-      VecCreateGhostWithArray(comm, local_size, global_size, num_ghosts,
-                              ghosts_ptr, x.array().data(), &_x_petsc);
-      VecCreateGhostWithArray(comm, local_size, global_size, num_ghosts,
-                              ghosts_ptr, y.mutable_array().data(), &_y_petsc);
+      dolfinx::fem::assemble_vector(y_array, *M);
+      fem::apply_lifting(y_array, {a}, {{bc}}, {}, 1.0);
+      fem::set_bc(y_array, {bc});
 
-      // Actual matrix vector multiplication
-      MatMult(A.mat(), _x_petsc, _y_petsc);
+      // Update owned values
+      y.scatter_rev(common::IndexMap::Mode::add);
     };
 
-    cg(*u.x(), b, matvec, 100, 1e-6);
+    linalg::cg(*u.x(), b, action, 100, 1e-6);
 
     // Save solution in VTK format
     io::VTKFile file(MPI_COMM_WORLD, "u.pvd", "w");
