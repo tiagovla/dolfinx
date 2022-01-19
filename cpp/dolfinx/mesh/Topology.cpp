@@ -37,7 +37,7 @@ determine_sharing_ranks(MPI_Comm comm,
                         const xtl::span<const std::int64_t>& unknown_idx)
 {
   const int mpi_size = dolfinx::MPI::size(comm);
-  // const int mpi_rank = dolfinx::MPI::rank(comm);
+  const int mpi_rank = dolfinx::MPI::rank(comm);
 
   LOG(INFO) << "Sharing ranks: send to PO";
   // Create a global address space to use with all_to_all post-office
@@ -80,25 +80,48 @@ determine_sharing_ranks(MPI_Comm comm,
   const graph::AdjacencyList<std::int64_t> recv_indices
       = dolfinx::MPI::all_to_all(comm, send_index_adj);
 
-  LOG(INFO) << "Sharing ranks: get owner and shared at PO";
   // Get index sharing - ownership will be first entry (randomised later)
-  // local_range = dolfinx::MPI::local_range(mpi_rank, N, mpi_size);
-  
-  std::unordered_map<std::int64_t, std::vector<int>> index_to_owner;
+  std::array<std::int64_t, 2> local_range
+      = dolfinx::MPI::local_range(mpi_rank, global_space, mpi_size);
+
+  std::vector<int> index_to_owner_sizes(local_range[1] - local_range[0]);
+  std::vector<int> index_to_owner_offsets(index_to_owner_sizes.size() + 1, 0);
   for (int p = 0; p < recv_indices.num_nodes(); ++p)
   {
-    auto recv_p = recv_indices.links(p);
-    for (std::size_t j = 0; j < recv_p.size(); ++j)
-      index_to_owner[recv_p[j]].push_back(p);
+    for (std::int64_t q : recv_indices.links(p))
+    {
+      assert(q >= local_range[0] and q < local_range[1]);
+      index_to_owner_sizes[q - local_range[0]]++;
+    }
   }
+  std::partial_sum(index_to_owner_sizes.begin(), index_to_owner_sizes.end(),
+                   std::next(index_to_owner_offsets.begin()));
+  std::vector<int> index_to_owner_data(index_to_owner_offsets.back());
+
+  for (int p = 0; p < recv_indices.num_nodes(); ++p)
+  {
+    for (std::int64_t q : recv_indices.links(p))
+    {
+      const int qlocal = q - local_range[0];
+      index_to_owner_data[index_to_owner_offsets[qlocal]++] = p;
+    }
+  }
+  // Reset offsets
+  index_to_owner_offsets[0] = 0;
+  std::partial_sum(index_to_owner_sizes.begin(), index_to_owner_sizes.end(),
+                   std::next(index_to_owner_offsets.begin()));
 
   // Randomise ownership
   std::mt19937 g(0);
-  for (auto& map_entry : index_to_owner)
+  for (std::size_t j = 0; j < index_to_owner_sizes.size(); ++j)
   {
-    std::vector<int>& procs = map_entry.second;
+    xtl::span<int> procs(index_to_owner_data.data() + index_to_owner_offsets[j],
+                         index_to_owner_data.data()
+                             + index_to_owner_offsets[j + 1]);
     std::shuffle(procs.begin(), procs.end(), g);
   }
+  const graph::AdjacencyList<int> index_to_owner_adj(
+      std::move(index_to_owner_data), std::move(index_to_owner_offsets));
 
   LOG(INFO) << "Sharing ranks: send back";
   // Send index ownership data back to all sharing processes
@@ -108,9 +131,8 @@ determine_sharing_ranks(MPI_Comm comm,
     auto recv_p = recv_indices.links(p);
     for (std::size_t j = 0; j < recv_p.size(); ++j)
     {
-      const auto it = index_to_owner.find(recv_p[j]);
-      assert(it != index_to_owner.end());
-      const std::vector<int>& sharing_procs = it->second;
+      const auto sharing_procs
+          = index_to_owner_adj.links(recv_p[j] - local_range[0]);
       send_owner[p].push_back(sharing_procs.size());
       send_owner[p].insert(send_owner[p].end(), sharing_procs.begin(),
                            sharing_procs.end());
@@ -126,7 +148,7 @@ determine_sharing_ranks(MPI_Comm comm,
 
   LOG(INFO) << "Sharing ranks: fill local data";
   // Now fill index_to_owner with locally needed indices
-  index_to_owner.clear();
+  std::unordered_map<std::int64_t, std::vector<int>> index_to_owner;
   for (int p = 0; p < mpi_size; ++p)
   {
     xtl::span<const std::int64_t> send_v = send_index_adj.links(p);
