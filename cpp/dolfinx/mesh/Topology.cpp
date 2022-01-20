@@ -172,7 +172,8 @@ determine_sharing_ranks(MPI_Comm comm,
         std::next(local_to_owner.begin(), local_to_owner_offsets[send_pos[i]]));
     c += count;
   }
-  assert(local_to_owner_offsets.back() == local_to_owner.size());
+  assert(static_cast<std::size_t>(local_to_owner_offsets.back())
+         == local_to_owner.size());
 
   return graph::AdjacencyList<int>(std::move(local_to_owner),
                                    std::move(local_to_owner_offsets));
