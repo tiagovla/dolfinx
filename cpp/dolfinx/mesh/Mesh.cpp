@@ -80,61 +80,66 @@ Mesh mesh::create_mesh(MPI_Comm comm,
     throw std::runtime_error("Ghost mode via vertex currently disabled.");
 
   const fem::ElementDofLayout dof_layout = element.create_dof_layout();
-
-  // TODO: This step can be skipped for 'P1' elements
-  //
-  // Extract topology data, e.g. just the vertices. For P1 geometry this
-  // should just be the identity operator. For other elements the
-  // filtered lists may have 'gaps', i.e. the indices might not be
-  // contiguous.
-  const graph::AdjacencyList<std::int64_t> cells_topology
-      = mesh::extract_topology(element.cell_shape(), dof_layout, cells);
-
-  // Compute the destination rank for cells on this process via graph
-  // partitioning. Always get the ghost cells via facet, though these
-  // may be discarded later.
-  const int size = dolfinx::MPI::size(comm);
   const int tdim = mesh::cell_dim(element.cell_shape());
-  const graph::AdjacencyList<std::int32_t> dest = cell_partitioner(
-      comm, size, tdim, cells_topology, GhostMode::shared_facet);
 
-  // Distribute cells to destination rank
-  const auto [cell_nodes0, src, original_cell_index0, ghost_owners]
-      = graph::build::distribute(comm, cells, dest);
+  auto [cell_nodes0, src, original_cell_index0, ghost_owners] = [&]() {
+    // TODO: This step can be skipped for 'P1' elements
+    //
+    // Extract topology data, e.g. just the vertices. For P1 geometry this
+    // should just be the identity operator. For other elements the
+    // filtered lists may have 'gaps', i.e. the indices might not be
+    // contiguous.
+    const graph::AdjacencyList<std::int64_t> cells_topology
+        = mesh::extract_topology(element.cell_shape(), dof_layout, cells);
 
-  // Extract cell 'topology', i.e. the vertices for each cell
-  const graph::AdjacencyList<std::int64_t> cells_extracted0
-      = mesh::extract_topology(element.cell_shape(), dof_layout, cell_nodes0);
+    // Compute the destination rank for cells on this process via graph
+    // partitioning. Always get the ghost cells via facet, though these
+    // may be discarded later.
+    const int size = dolfinx::MPI::size(comm);
+    const graph::AdjacencyList<int> dest = cell_partitioner(
+        comm, size, tdim, cells_topology, GhostMode::shared_facet);
 
-  // Build local dual graph for owned cells to apply re-ordering to
-  const std::int32_t num_owned_cells
-      = cells_extracted0.num_nodes() - ghost_owners.size();
-  const auto [g, m] = mesh::build_local_dual_graph(
-      xtl::span<const std::int64_t>(
-          cells_extracted0.array().data(),
-          cells_extracted0.offsets()[num_owned_cells]),
-      xtl::span<const std::int32_t>(cells_extracted0.offsets().data(),
-                                    num_owned_cells + 1),
-      tdim);
+    // Distribute cells to destination rank
+    return graph::build::distribute(comm, cells, dest);
+  }();
 
-  // Compute re-ordering of local dual graph
-  std::vector<int> remap = graph::reorder_gps(g);
+  graph::AdjacencyList<std::int64_t> cells_extracted(0);
+  graph::AdjacencyList<std::int64_t> cell_nodes(0);
+  std::vector<std::int64_t> original_cell_index;
+  {
+    // Extract cell 'topology', i.e. the vertices for each cell
+    const graph::AdjacencyList<std::int64_t> cells_extracted0
+        = mesh::extract_topology(element.cell_shape(), dof_layout, cell_nodes0);
 
-  // Create re-ordered cell lists
-  std::vector<std::int64_t> original_cell_index(original_cell_index0);
-  for (std::size_t i = 0; i < remap.size(); ++i)
-    original_cell_index[remap[i]] = original_cell_index0[i];
-  const graph::AdjacencyList<std::int64_t> cells_extracted
-      = reorder_list(cells_extracted0, remap);
-  const graph::AdjacencyList<std::int64_t> cell_nodes
-      = reorder_list(cell_nodes0, remap);
+    // Build local dual graph for owned cells to apply re-ordering to
+    const std::int32_t num_owned_cells
+        = cells_extracted0.num_nodes() - ghost_owners.size();
+    const auto [g, m] = mesh::build_local_dual_graph(
+        xtl::span<const std::int64_t>(
+            cells_extracted0.array().data(),
+            cells_extracted0.offsets()[num_owned_cells]),
+        xtl::span<const std::int32_t>(cells_extracted0.offsets().data(),
+                                      num_owned_cells + 1),
+        tdim);
+
+    // Compute re-ordering of local dual graph
+    std::vector<int> remap = graph::reorder_gps(g);
+
+    // Create re-ordered cell lists
+    original_cell_index.resize(original_cell_index0.size());
+    for (std::size_t i = 0; i < remap.size(); ++i)
+      original_cell_index[remap[i]] = original_cell_index0[i];
+    std::vector<std::int64_t>().swap(original_cell_index0);
+    cells_extracted = reorder_list(cells_extracted0, remap);
+    cell_nodes = reorder_list(cell_nodes0, remap);
+  }
 
   // Create cells and vertices with the ghosting requested. Input
   // topology includes cells shared via facet, but ghosts will be
   // removed later if not required by ghost_mode.
-  Topology topology
-      = mesh::create_topology(comm, cells_extracted, original_cell_index,
-                              ghost_owners, element.cell_shape(), ghost_mode);
+  Topology topology = mesh::create_topology(comm, std::move(cells_extracted),
+                                            original_cell_index, ghost_owners,
+                                            element.cell_shape(), ghost_mode);
 
   // Create connectivity required to compute the Geometry (extra
   // connectivities for higher-order geometries)
@@ -215,8 +220,9 @@ mesh::create_submesh(const Mesh& mesh, int dim,
   std::vector<std::int32_t> submesh_owned_entities;
   std::copy_if(entities.begin(), entities.end(),
                std::back_inserter(submesh_owned_entities),
-               [mesh_entity_index_map](std::int32_t e)
-               { return e < mesh_entity_index_map->size_local(); });
+               [mesh_entity_index_map](std::int32_t e) {
+                 return e < mesh_entity_index_map->size_local();
+               });
 
   // Create submesh entity index map
   // TODO Call dolfinx::common::get_owned_indices here? Do we want to
@@ -294,12 +300,13 @@ mesh::create_submesh(const Mesh& mesh, int dim,
                                                  submesh_owned_x_dofs.end());
   submesh_to_mesh_x_dof_map.reserve(submesh_x_dof_index_map->size_local()
                                     + submesh_x_dof_index_map->num_ghosts());
-  std::transform(
-      submesh_x_dof_index_map_pair.second.begin(),
-      submesh_x_dof_index_map_pair.second.end(),
-      std::back_inserter(submesh_to_mesh_x_dof_map),
-      [mesh_geometry_dof_index_map](std::int32_t x_dof_index)
-      { return mesh_geometry_dof_index_map->size_local() + x_dof_index; });
+  std::transform(submesh_x_dof_index_map_pair.second.begin(),
+                 submesh_x_dof_index_map_pair.second.end(),
+                 std::back_inserter(submesh_to_mesh_x_dof_map),
+                 [mesh_geometry_dof_index_map](std::int32_t x_dof_index) {
+                   return mesh_geometry_dof_index_map->size_local()
+                          + x_dof_index;
+                 });
 
   // Create submesh geometry coordinates
   xtl::span<const double> mesh_x = mesh.geometry().x();
@@ -348,11 +355,11 @@ mesh::create_submesh(const Mesh& mesh, int dim,
       = mesh.geometry().input_global_indices();
   std::vector<std::int64_t> submesh_igi;
   submesh_igi.reserve(submesh_to_mesh_x_dof_map.size());
-  std::transform(submesh_to_mesh_x_dof_map.begin(),
-                 submesh_to_mesh_x_dof_map.end(),
-                 std::back_inserter(submesh_igi),
-                 [&mesh_igi](std::int32_t submesh_x_dof)
-                 { return mesh_igi[submesh_x_dof]; });
+  std::transform(
+      submesh_to_mesh_x_dof_map.begin(), submesh_to_mesh_x_dof_map.end(),
+      std::back_inserter(submesh_igi), [&mesh_igi](std::int32_t submesh_x_dof) {
+        return mesh_igi[submesh_x_dof];
+      });
 
   // Create geometry
   mesh::Geometry submesh_geometry(
