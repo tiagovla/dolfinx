@@ -73,22 +73,26 @@ mesh::Geometry mesh::create_geometry(
       coordinate_element.unpermute_dofs(dofmap.links(cell), cell_info[cell]);
   }
 
+  LOG(INFO) << "Geometry: unique indices";
   // Build list of unique (global) node indices from adjacency list
   // (geometry nodes)
   std::vector<std::int64_t> indices = cell_nodes.array();
   dolfinx::radix_sort(xtl::span(indices));
   indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
 
+  LOG(INFO) << "Geometry: distribute data";
   //  Fetch node coordinates by global index from other ranks. Order of
   //  coords matches order of the indices in 'indices'
   xt::xtensor<double, 2> coords
       = graph::build::distribute_data<double>(comm, indices, x);
 
+  LOG(INFO) << "Geometry: compute local to global";
   // Compute local-to-global map from local indices in dofmap to the
   // corresponding global indices in cell_nodes
   std::vector l2g
       = graph::build::compute_local_to_global_links(cell_nodes, dofmap);
 
+  LOG(INFO) << "Geometry: local-to-local";
   // Compute local (dof) to local (position in coords) map from (i)
   // local-to-global for dofs and (ii) local-to-global for entries in
   // coords
@@ -103,6 +107,7 @@ mesh::Geometry mesh::create_geometry(
     std::copy(row.cbegin(), row.cend(), std::next(xg.begin(), 3 * i));
   }
 
+  LOG(INFO) << "Geometry: final part";
   // Allocate space for input global indices and copy data
   std::vector<std::int64_t> igi(indices.size());
   std::transform(l2l.cbegin(), l2l.cend(), igi.begin(),
