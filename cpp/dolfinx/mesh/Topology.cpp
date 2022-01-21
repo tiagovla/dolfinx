@@ -128,28 +128,45 @@ determine_sharing_ranks(MPI_Comm comm,
 
   LOG(INFO) << "Sharing ranks: send back";
   // Send index ownership data back to all sharing processes
-  std::vector<std::vector<int>> send_owner(mpi_size);
+  std::vector<int> send_owner_sizes(mpi_size, 0);
+  std::vector<int> send_owner_offsets(mpi_size + 1, 0);
   for (int p = 0; p < recv_indices.num_nodes(); ++p)
   {
     auto recv_p = recv_indices.links(p);
-    for (std::size_t j = 0; j < recv_p.size(); ++j)
+    send_owner_sizes[p] = std::transform_reduce(
+        recv_p.cbegin(), recv_p.cend(), 0, std::plus<int>(), [&](int p) {
+          return index_to_owner_adj.num_links(p - local_range[0]) + 1;
+        });
+  }
+  std::partial_sum(send_owner_sizes.begin(), send_owner_sizes.end(),
+                   std::next(send_owner_offsets.begin()));
+  std::vector<int> send_owner(send_owner_offsets.back());
+
+  for (int p = 0; p < recv_indices.num_nodes(); ++p)
+  {
+    for (std::int64_t q : recv_indices.links(p))
     {
-      const auto sharing_procs
-          = index_to_owner_adj.links(recv_p[j] - local_range[0]);
-      send_owner[p].push_back(sharing_procs.size());
-      send_owner[p].insert(send_owner[p].end(), sharing_procs.begin(),
-                           sharing_procs.end());
+      const auto sharing_procs = index_to_owner_adj.links(q - local_range[0]);
+      const int nprocs = sharing_procs.size();
+      send_owner[send_owner_offsets[p]++] = nprocs;
+      std::copy(sharing_procs.begin(), sharing_procs.end(),
+                std::next(send_owner.begin(), send_owner_offsets[p]));
+      send_owner_offsets[p] += nprocs;
     }
   }
+  // Reset offsets
+  send_owner_offsets[0] = 0;
+  std::partial_sum(send_owner_sizes.begin(), send_owner_sizes.end(),
+                   std::next(send_owner_offsets.begin()));
 
   // Alltoall is necessary because cells which are shared by vertex are
   // not yet known to this process
-  const graph::AdjacencyList<int> recv_owner
-      = dolfinx::MPI::all_to_all(comm, graph::AdjacencyList<int>(send_owner));
+  const graph::AdjacencyList<int> recv_owner = dolfinx::MPI::all_to_all(
+      comm, graph::AdjacencyList<int>(std::move(send_owner),
+                                      std::move(send_owner_offsets)));
 
   LOG(INFO) << "Received " << recv_owner.array().size() << " owner data";
 
-  // Now fill index_to_owner with locally needed indices
   std::vector<int> local_to_owner(recv_owner.array().size()
                                   - unknown_idx.size());
   std::vector<int> local_to_owner_sizes(unknown_idx.size());
