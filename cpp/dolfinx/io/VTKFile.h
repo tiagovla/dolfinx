@@ -37,10 +37,9 @@ namespace dolfinx::io
 /// be saved. For vertex-based functions the output must be
 /// isoparametic, i.e. the geometry and the finite element functions
 /// must be defined using the same basis.
-
-/// This format if It is not suitable to checkpointing as it may
+///
+/// @note This format is not suitable to checkpointing as it may
 /// decimate some data.
-
 class VTKFile
 {
 public:
@@ -57,22 +56,22 @@ public:
   /// Flushes XML files to disk
   void flush();
 
-  /// Write mesh to file. Supports arbitrary order Lagrange
+  /// Write a Mesh to file. Supports arbitrary order Lagrange
   /// isoparametric cells.
   /// @param[in] mesh The Mesh to write to file
   /// @param[in] time Time parameter to associate with the @p mesh
   void write(const mesh::Mesh& mesh, double time = 0.0);
 
-  /// Output fem::Function and timestep
+  /// Output an finite element function
   /// @param[in] u List of functions to write to file
-  /// @param[in] t Time parameter to associate with the @p mesh
+  /// @param[in] t Time parameter to associate with @p u
   void write(
       const std::vector<std::reference_wrapper<const fem::Function<double>>>& u,
       double t);
 
-  /// Output fem::Function and timestep
+  /// Output an finite element function
   /// @param[in] u List of functions to write to file
-  /// @param[in] t Time parameter to associate with the @p mesh
+  /// @param[in] t Time parameter to associate with @p u
   void write(
       const std::vector<
           std::reference_wrapper<const fem::Function<std::complex<double>>>>& u,

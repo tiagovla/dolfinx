@@ -308,8 +308,8 @@ void add_data(const fem::Function<std::complex<double>>& u,
 }
 //----------------------------------------------------------------------------
 
-/// At mesh geometry and topology data to a pugixml node. The function /
-/// adds the Points and Cells nodes to the input node/
+/// At mesh geometry and topology data to a pugixml node. The function
+/// adds the Points and Cells nodes to the input node.
 void add_mesh(const mesh::Mesh& mesh, pugi::xml_node& piece_node)
 {
   const mesh::Topology& topology = mesh.topology();
@@ -390,7 +390,7 @@ template <typename Scalar>
 void write_function(
     const std::vector<std::reference_wrapper<const fem::Function<Scalar>>>& u,
     double time, std::unique_ptr<pugi::xml_document>& xml_doc,
-    const std::string filename)
+    const std::string& filename)
 {
   if (!xml_doc)
     throw std::runtime_error("VTKFile has already been closed");
@@ -398,19 +398,19 @@ void write_function(
   if (u.empty())
     return;
 
-  // Extract mesh
+  // Extract a common Mesh
   assert(u.front().get().function_space());
-  std::shared_ptr<const mesh::Mesh> mesh
-      = u.front().get().function_space()->mesh();
+  auto mesh = u.front().get().function_space()->mesh();
   assert(mesh);
-  for (std::size_t i = 1; i < u.size(); ++i)
+  for (auto& v : u)
   {
-    if (u[i].get().function_space()->mesh() != mesh)
+    if (v.get().function_space()->mesh() != mesh)
     {
       throw std::runtime_error(
           "Meshes for Functions to write to VTK file do not match.");
     }
   }
+
   // Get MPI comm
   const MPI_Comm comm = mesh->comm();
   const int mpi_rank = dolfinx::MPI::rank(comm);
@@ -447,28 +447,33 @@ void write_function(
   // Add mesh data to "Piece" node
   add_mesh(*mesh, piece_node);
 
-  // Loop through functions to add data types and ranks
+  // For each Function, add data type and rank
   for (auto _u : u)
   {
-    std::string data_type;
-    if (is_cellwise(_u))
-      data_type = "CellData";
-    else
-      data_type = "PointData";
+    std::string data_type = is_cellwise(_u) ? "CellData" : "PointData";
 
-    // Set last entry of a given rank to be the active data type
-    // as Paraview only supports one active type
+    // Set last entry of a given rank to be the active data type as
+    // Paraview only supports one active type
     if (piece_node.child(data_type.c_str()).empty())
       piece_node.append_child(data_type.c_str());
     const int rank = _u.get().function_space()->element()->value_shape().size();
     pugi::xml_node data_node = piece_node.child(data_type.c_str());
     std::string rank_type;
-    if (rank == 0)
+    switch (rank)
+    {
+    case 0:
       rank_type = "Scalars";
-    else if (rank == 1)
+      break;
+    case 1:
       rank_type = "Vectors";
-    else if (rank == 2)
+      break;
+    case 2:
       rank_type = "Tensors";
+      break;
+    default:
+      throw std::runtime_error("Unsupported rank");
+    }
+
     if (data_node.attribute(rank_type.c_str()).empty())
       data_node.append_attribute(rank_type.c_str());
     pugi::xml_attribute data = data_node.attribute(rank_type.c_str());
@@ -500,7 +505,7 @@ void write_function(
 
     if (is_cellwise(_u))
     {
-      // Cell-wise (DG0) Function
+      // -- Cell-wise (DG0) Function
 
       const std::vector<Scalar> values
           = io::xdmf_utils::get_cell_data_values(_u);
@@ -518,6 +523,8 @@ void write_function(
     }
     else
     {
+      // -- Point-wise Function
+
       // Extract mesh data
       int tdim = mesh->topology().dim();
       auto cmap = mesh->geometry().cmap();
@@ -578,7 +585,6 @@ void write_function(
       {
         auto dofmap = _u.get().function_space()->sub({k})->dofmap();
         auto& element_layout = dofmap->element_dof_layout();
-
         for (std::int32_t i = 0; i <= tdim; i++)
         {
           // Check that subelement layout matches geometry layout
@@ -651,8 +657,10 @@ void write_function(
         if (grid_node.child("PPointData").empty())
           grid_node.append_child("PPointData");
       }
+
     // Add mesh metadata to PVTU object
     add_pvtu_mesh(grid_node);
+
     // Add field data
     std::vector<std::string> components = {""};
     if constexpr (!std::is_scalar<Scalar>::value)
@@ -752,21 +760,6 @@ void io::VTKFile::flush()
     _pvd_xml->save_file(_filename.c_str(), "  ");
 }
 //----------------------------------------------------------------------------
-void io::VTKFile::write(
-    const std::vector<std::reference_wrapper<const fem::Function<double>>>& u,
-    double time)
-{
-  write_function(u, time, _pvd_xml, _filename);
-}
-//----------------------------------------------------------------------------
-void io::VTKFile::write(
-    const std::vector<
-        std::reference_wrapper<const fem::Function<std::complex<double>>>>& u,
-    double time)
-{
-  write_function(u, time, _pvd_xml, _filename);
-}
-//----------------------------------------------------------------------------
 void io::VTKFile::write(const mesh::Mesh& mesh, double time)
 {
   if (!_pvd_xml)
@@ -854,5 +847,20 @@ void io::VTKFile::write(const mesh::Mesh& mesh, double time)
   dataset_node.append_attribute("part") = "0";
   dataset_node.append_attribute("file")
       = p_pvtu.stem().replace_extension("pvtu").c_str();
+}
+//----------------------------------------------------------------------------
+void io::VTKFile::write(
+    const std::vector<std::reference_wrapper<const fem::Function<double>>>& u,
+    double time)
+{
+  write_function(u, time, _pvd_xml, _filename);
+}
+//----------------------------------------------------------------------------
+void io::VTKFile::write(
+    const std::vector<
+        std::reference_wrapper<const fem::Function<std::complex<double>>>>& u,
+    double time)
+{
+  write_function(u, time, _pvd_xml, _filename);
 }
 //----------------------------------------------------------------------------

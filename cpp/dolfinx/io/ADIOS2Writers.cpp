@@ -94,6 +94,7 @@ xt::xtensor<std::int64_t, 2> extract_vtk_connectivity(const mesh::Mesh& mesh)
     map = {0,  9, 12, 3,  1, 10, 13, 4,  18, 15, 21, 6,  19, 16,
            22, 7, 2,  11, 5, 14, 8,  17, 20, 23, 24, 25, 26};
   }
+
   // Extract mesh 'nodes'
   const int tdim = mesh.topology().dim();
   const std::size_t num_cells = mesh.topology().index_map(tdim)->size_local();
@@ -958,7 +959,7 @@ void VTXWriter::write(double t)
   _engine->BeginStep();
   _engine->Put<double>(var_step, t);
 
-  // If we have no functions write the mesh to file
+  // If we have no functions, write the mesh to file
   if (_u.empty())
     vtx_write_mesh(*_io, *_engine, *_mesh);
   else
