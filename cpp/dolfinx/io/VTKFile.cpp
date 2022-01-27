@@ -478,8 +478,30 @@ void write_function(
   // Add cell/point data to VTU node
   for (auto _u : u)
   {
+    auto element = _u.get().function_space()->element();
+    assert(element);
+
+    // Check if function is mixed
+    if (element->is_mixed())
+    {
+      throw std::runtime_error(
+          "Mixed functions are not supported by VTK writer");
+    }
+
+    // FIXME: is the below check adequate for dectecting a Lagrange
+    // element?
+    // Check that element is Lagrange
+    if (!element->interpolation_ident())
+    {
+      throw std::runtime_error(
+          "Only (discontinuous) Lagrange functions are "
+          "supported. Interpolate Functions before ouput.");
+    }
+
     if (is_cellwise(_u))
     {
+      // Cell-wise (DG0) Function
+
       const std::vector<Scalar> values
           = io::xdmf_utils::get_cell_data_values(_u);
       const size_t value_size
@@ -488,63 +510,87 @@ void write_function(
       xt::xtensor<Scalar, 2> _values({values.size() / value_size, value_size});
       // FIXME: Avoid copies by writing directly a compound data
       for (std::size_t i = 0; i < _values.shape(0); ++i)
-      {
         for (std::size_t j = 0; j < value_size; ++j)
-        {
           _values(i, j) = values[i * value_size + j];
-        }
-      }
       pugi::xml_node data_node = piece_node.child("CellData");
       assert(!data_node.empty());
       add_data(_u, _values, data_node);
     }
     else
     {
-      // Check if the function space is Lagrangian
-      // NOTE: This should be changed if we add option to visualize DG
-      std::shared_ptr<const dolfinx::fem::FiniteElement> element
-          = _u.get().function_space()->element();
-      if ((element->family().compare("Lagrange") == 0)
-          or (element->family().compare("Q") == 0))
+      // Extract mesh data
+      int tdim = mesh->topology().dim();
+      auto cmap = mesh->geometry().cmap();
+      const fem::ElementDofLayout geometry_layout = cmap.create_dof_layout();
+
+      // Extract function value
+      xtl::span<const Scalar> func_values = _u.get().x()->array();
+
+      // Compute in tensor (one for scalar function, . . .)
+      const size_t value_size = element->value_size();
+
+      // FIXME: Add proper interface for num coordinate dofs
+      const graph::AdjacencyList<std::int32_t>& x_dofmap
+          = mesh->geometry().dofmap();
+      const int num_dofs_g = x_dofmap.num_links(0);
+
+      auto map = mesh->topology().index_map(tdim);
+      assert(map);
+      const std::int32_t num_cells = map->size_local();
+
+      // Resize array for holding point values
+      xt::xtensor<Scalar, 2> point_values
+          = xt::zeros<Scalar>({mesh->geometry().x().size() / 3, value_size});
+
+      // If scalar function space
+      if (element->num_sub_elements() == 0)
       {
-        // Extract mesh data
-        int tdim = mesh->topology().dim();
-        auto cmap = mesh->geometry().cmap();
-        const fem::ElementDofLayout geometry_layout = cmap.create_dof_layout();
-        // Extract function value
-        xtl::span<const Scalar> func_values = _u.get().x()->array();
-        // Compute in tensor (one for scalar function, . . .)
-        const size_t value_size_loc = element->value_size();
-
-        // FIXME: Add proper interface for num coordinate dofs
-        const graph::AdjacencyList<std::int32_t>& x_dofmap
-            = mesh->geometry().dofmap();
-        const int num_dofs_g = x_dofmap.num_links(0);
-
-        auto map = mesh->topology().index_map(tdim);
-        assert(map);
-        const std::int32_t num_cells = map->size_local();
-
-        // Resize array for holding point values
-        xt::xtensor<Scalar, 2> point_values = xt::zeros<Scalar>(
-            {mesh->geometry().x().size() / 3, value_size_loc});
-
-        // If scalar function space
-        if (element->num_sub_elements() == 0)
+        auto dofmap = _u.get().function_space()->dofmap();
+        auto& element_layout = dofmap->element_dof_layout();
+        for (std::int32_t i = 0; i <= tdim; i++)
         {
-          auto dofmap = _u.get().function_space()->dofmap();
-          auto& element_layout = dofmap->element_dof_layout();
-          for (std::int32_t i = 0; i <= tdim; i++)
+          // Check that subelement layout matches geometry layout
+          if (geometry_layout.num_entity_dofs(i)
+              != element_layout.num_entity_dofs(i))
           {
-            // Check that subelement layout matches geometry layout
-            if (geometry_layout.num_entity_dofs(i)
-                != element_layout.num_entity_dofs(i))
-            {
-              LOG(WARNING) << "Output data is interpolated into a first order "
-                              "Lagrange space.";
-              point_values = _u.get().compute_point_values();
-            }
+            LOG(WARNING) << "Output data is interpolated into a first order "
+                            "Lagrange space.";
+            point_values = _u.get().compute_point_values();
           }
+        }
+
+        // Loop through cells
+        for (std::int32_t c = 0; c < num_cells; ++c)
+        {
+          // Get local to global dof ordering for geometry and function
+          auto dofs = x_dofmap.links(c);
+          auto cell_dofs = dofmap->cell_dofs(c);
+          for (std::int32_t i = 0; i < num_dofs_g; i++)
+          {
+            point_values(dofs[i], 0) = func_values[cell_dofs[i]];
+          }
+        }
+      }
+
+      // Loop through each vector/tensor component
+      bool element_matching_mesh = true;
+      for (std::int32_t k = 0; k < element->num_sub_elements(); k++)
+      {
+        auto dofmap = _u.get().function_space()->sub({k})->dofmap();
+        auto& element_layout = dofmap->element_dof_layout();
+
+        for (std::int32_t i = 0; i <= tdim; i++)
+        {
+          // Check that subelement layout matches geometry layout
+          if (geometry_layout.num_entity_dofs(i)
+              != element_layout.num_entity_dofs(i))
+          {
+            element_matching_mesh = false;
+            break;
+          }
+        }
+        if (element_matching_mesh)
+        {
           // Loop through cells
           for (std::int32_t c = 0; c < num_cells; ++c)
           {
@@ -552,72 +598,22 @@ void write_function(
             auto dofs = x_dofmap.links(c);
             auto cell_dofs = dofmap->cell_dofs(c);
             for (std::int32_t i = 0; i < num_dofs_g; i++)
-            {
-              point_values(dofs[i], 0) = func_values[cell_dofs[i]];
-            }
+              point_values(dofs[i], k) = func_values[cell_dofs[i]];
           }
         }
-
-        // Loop through each vector/tensor component
-        bool element_matching_mesh = true;
-        for (std::int32_t k = 0; k < element->num_sub_elements(); k++)
+        else
         {
-          auto dofmap = _u.get().function_space()->sub({k})->dofmap();
-          auto& element_layout = dofmap->element_dof_layout();
-
-          for (std::int32_t i = 0; i <= tdim; i++)
-          {
-            // Check that subelement layout matches geometry layout
-            if (geometry_layout.num_entity_dofs(i)
-                != element_layout.num_entity_dofs(i))
-            {
-              element_matching_mesh = false;
-              break;
-              // throw std::runtime_error("Can only save Lagrange finite
-              // element
-              // "
-              //                          "functions of same order "
-              //                          "as the mesh geometry");
-            }
-          }
-          if (element_matching_mesh)
-          {
-            // Loop through cells
-            for (std::int32_t c = 0; c < num_cells; ++c)
-            {
-              // Get local to global dof ordering for geometry and function
-              auto dofs = x_dofmap.links(c);
-              auto cell_dofs = dofmap->cell_dofs(c);
-              for (std::int32_t i = 0; i < num_dofs_g; i++)
-              {
-                point_values(dofs[i], k) = func_values[cell_dofs[i]];
-              }
-            }
-          }
-          else
-          {
-            LOG(WARNING) << "Output data is interpolated into a first order "
-                            "Lagrange space.";
-            break;
-          }
+          LOG(WARNING) << "Output data is interpolated into a first order "
+                          "Lagrange space.";
+          break;
         }
-        if (!element_matching_mesh)
-          point_values = _u.get().compute_point_values();
-        pugi::xml_node data_node = piece_node.child("PointData");
-        assert(!data_node.empty());
-        add_data(_u, point_values, data_node);
       }
-      else
-      {
-        LOG(WARNING) << "Output data is interpolated into a first order "
-                        "Lagrange space.";
-        xt::xtensor<Scalar, 2> point_values = _u.get().compute_point_values();
-        pugi::xml_node data_node = piece_node.child("PointData");
-        assert(!data_node.empty());
-        add_data(_u, point_values, data_node);
-        // throw std::runtime_error("Can only visualize Lagrange finite
-        // elements");
-      }
+
+      if (!element_matching_mesh)
+        point_values = _u.get().compute_point_values();
+      pugi::xml_node data_node = piece_node.child("PointData");
+      assert(!data_node.empty());
+      add_data(_u, point_values, data_node);
     }
   }
 
