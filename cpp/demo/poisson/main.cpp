@@ -92,6 +92,7 @@
 #include <dolfinx.h>
 #include <dolfinx/fem/Constant.h>
 #include <dolfinx/fem/petsc.h>
+#include <dolfinx/io/VTKHDF5File.h>
 #include <xtensor/xarray.hpp>
 #include <xtensor/xview.hpp>
 
@@ -179,8 +180,8 @@ int main(int argc, char* argv[])
           return 10 * xt::exp(-(dx) / 0.02);
         });
 
-    g->interpolate([](auto& x) -> xt::xarray<T>
-                   { return xt::sin(5 * xt::row(x, 0)); });
+    g->interpolate(
+        [](auto& x) -> xt::xarray<T> { return xt::sin(5 * xt::row(x, 0)); });
 
     // Now, we have specified the variational forms and can consider the
     // solution of the variational problem. First, we need to define a
@@ -233,6 +234,8 @@ int main(int argc, char* argv[])
     // Save solution in VTK format
     io::VTKFile file(MPI_COMM_WORLD, "u.pvd", "w");
     file.write<T>({u}, 0.0);
+
+    io::VTKHDF5File file1(MPI_COMM_WORLD, "u.h5", "w");
   }
 
   common::subsystem::finalize_petsc();
