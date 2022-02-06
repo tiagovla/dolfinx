@@ -102,11 +102,14 @@ XDMFFile::XDMFFile(MPI_Comm comm, const std::filesystem::path& filename,
     // _hdf5_file_id(0)
 
     // Open HDF5 file
-    const std::filesystem::path hdf5_filename = xdmf_utils::get_hdf5_filename(_filename);
+    const std::filesystem::path hdf5_filename
+        = xdmf_utils::get_hdf5_filename(_filename);
     const bool mpi_io = MPI::size(_comm.comm()) > 1 ? true : false;
     _h5_id = HDF5Interface::open_file(_comm.comm(), hdf5_filename, file_mode,
                                       mpi_io);
-    assert(_h5_id > 0);
+    if (!(_h5_id > 0))
+      throw std::runtime_error("Failed to open HDF5 file.");
+
     LOG(INFO) << "Opened HDF5 file with id \"" << _h5_id << "\"";
   }
   else
@@ -149,9 +152,9 @@ XDMFFile::XDMFFile(MPI_Comm comm, const std::filesystem::path& filename,
     if (std::filesystem::exists(_filename))
     {
       // Load XML doc from file
-      [[maybe_unused]] pugi::xml_parse_result result
-          = _xml_doc->load_file(_filename.c_str());
-      assert(result);
+      pugi::xml_parse_result result = _xml_doc->load_file(_filename.c_str());
+      if (!result)
+        throw std::runtime_error("Failed to read XML file.");
 
       if (_xml_doc->child("Xdmf").empty())
         throw std::runtime_error("Empty <Xdmf> root node.");
@@ -220,7 +223,7 @@ void XDMFFile::write_geometry(const mesh::Geometry& geometry,
                                geometry);
 
   // Save XML file (on process 0 only)
-  if (MPI::rank(_comm.comm()) == 0)
+  if (dolfinx::MPI::rank(_comm.comm()) == 0)
     _xml_doc->save_file(_filename.c_str(), "  ");
 }
 //-----------------------------------------------------------------------------
@@ -230,9 +233,9 @@ mesh::Mesh XDMFFile::read_mesh(const fem::CoordinateElement& element,
                                const std::string xpath) const
 {
   // Read mesh data
-  const xt::xtensor<std::int64_t, 2> cells
+  xt::xtensor<std::int64_t, 2> cells
       = XDMFFile::read_topology_data(name, xpath);
-  const xt::xtensor<double, 2> x = XDMFFile::read_geometry_data(name, xpath);
+  xt::xtensor<double, 2> x = XDMFFile::read_geometry_data(name, xpath);
 
   // Create mesh
   auto [data, offset] = graph::create_adjacency_data(cells);
