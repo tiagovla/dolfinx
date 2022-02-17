@@ -592,9 +592,9 @@ void write_function(
   xml_vtu.save_file(vtu.c_str(), "  ");
 
   // -- Create a PVTU XML object on rank 0
+  std::filesystem::path p_pvtu = filename.parent_path() / filename.stem();
   if (mpi_rank == 0)
   {
-    std::filesystem::path p_pvtu = filename.parent_path() / filename.stem();
     p_pvtu += counter_str;
     p_pvtu.replace_extension("pvtu");
 
@@ -665,12 +665,11 @@ void write_function(
       std::filesystem::create_directories(p_pvtu.parent_path());
     xml_pvtu.save_file(p_pvtu.c_str(), "  ");
 
-    // Append PVD file
-    pugi::xml_node dataset_node = xml_collections.append_child("DataSet");
-    dataset_node.append_attribute("timestep") = time;
-    dataset_node.append_attribute("part") = "0";
-    dataset_node.append_attribute("file") = p_pvtu.filename().c_str();
-  }
+  // Append PVD file
+  pugi::xml_node dataset_node = xml_collections.append_child("DataSet");
+  dataset_node.append_attribute("timestep") = time;
+  dataset_node.append_attribute("part") = "0";
+  dataset_node.append_attribute("file") = p_pvtu.filename().c_str();
 }
 //----------------------------------------------------------------------------
 
@@ -793,7 +792,7 @@ void io::VTKFile::write(const mesh::Mesh& mesh, double time)
   xml_vtu.save_file(vtu.c_str(), "  ");
 
   // Create a PVTU XML object on rank 0
-  std::filesystem::path p_pvtu = _filename.stem();
+  std::filesystem::path p_pvtu = _filename.parent_path() / _filename.stem();
   p_pvtu += counter_str;
   p_pvtu.replace_extension("pvtu");
   if (mpi_rank == 0)
@@ -809,25 +808,23 @@ void io::VTKFile::write(const mesh::Mesh& mesh, double time)
     add_pvtu_mesh(grid_node);
 
     // Add data for each process to the PVTU object
-    const int mpi_size = MPI::size(_comm.comm());
+    const int mpi_size = dolfinx::MPI::size(_comm.comm());
     for (int r = 0; r < mpi_size; ++r)
     {
       std::filesystem::path vtu = create_vtu_path(r);
       pugi::xml_node piece_node = grid_node.append_child("Piece");
       piece_node.append_attribute("Source") = vtu.filename().c_str();
     }
-
     // Write PVTU file
     if (p_pvtu.has_parent_path())
       std::filesystem::create_directories(p_pvtu.parent_path());
     xml_pvtu.save_file(p_pvtu.c_str(), "  ");
 
-    // Append PVD file
-    pugi::xml_node dataset_node = xml_collections.append_child("DataSet");
-    dataset_node.append_attribute("timestep") = time;
-    dataset_node.append_attribute("part") = "0";
-    dataset_node.append_attribute("file") = p_pvtu.filename().c_str();
-  }
+  // Append PVD file
+  pugi::xml_node dataset_node = xml_collections.append_child("DataSet");
+  dataset_node.append_attribute("timestep") = time;
+  dataset_node.append_attribute("part") = "0";
+  dataset_node.append_attribute("file") = p_pvtu.filename().c_str();
 }
 //----------------------------------------------------------------------------
 void io::VTKFile::write_functions(
