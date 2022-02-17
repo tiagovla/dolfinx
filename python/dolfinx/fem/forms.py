@@ -132,11 +132,7 @@ def form(form: typing.Union[ufl.Form, typing.Iterable[ufl.Form]], dtype: np.dtyp
         return form argument"""
         if isinstance(form, ufl.Form):
             return _form(form)
-<<<<<<< HEAD
-        elif isinstance(form, collections.Iterable):
-=======
         elif isinstance(form, collections.abc.Iterable):
->>>>>>> origin/main
             return list(map(lambda sub_form: _create_form(sub_form), form))
         return form
 

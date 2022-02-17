@@ -57,12 +57,6 @@ def test_save_1d_scalar(tempdir):
         vtk.write_function(u, 0.)
 
 
-<< << << < HEAD
-# vtk.write_function(u, 1.)
-== == == =
->>>>>> > origin / main
-
-
 @pytest.mark.parametrize("cell_type", cell_types_2D)
 def test_save_2d_scalar(tempdir, cell_type):
     mesh = create_unit_square(MPI.COMM_WORLD, 16, 16, cell_type=cell_type)
