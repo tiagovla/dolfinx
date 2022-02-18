@@ -207,10 +207,10 @@ def test_sub_constant_bc(mesh_factory):
 
 @pytest.mark.parametrize(
     'mesh_factory', [
-        (create_unit_square, (MPI.COMM_WORLD, 4, 4)),
-        (create_unit_square, (MPI.COMM_WORLD, 4, 4, CellType.quadrilateral)),
-        (create_unit_cube, (MPI.COMM_WORLD, 3, 3, 3)),
-        (create_unit_cube, (MPI.COMM_WORLD, 3, 3, 3, CellType.hexahedron))
+        # (create_unit_square, (MPI.COMM_WORLD, 4, 4)),
+        # (create_unit_square, (MPI.COMM_WORLD, 4, 4, CellType.quadrilateral)),
+        (create_unit_cube, (MPI.COMM_WORLD, 1, 1, 1)),
+        # (create_unit_cube, (MPI.COMM_WORLD, 3, 3, 3, CellType.hexahedron))
     ])
 def test_mixed_constant_bc(mesh_factory):
     """Test that setting a dirichletbc with on a component of a mixed
@@ -225,15 +225,21 @@ def test_mixed_constant_bc(mesh_factory):
     U = Function(W)
 
     # Apply BC to component of a mixed space using a Constant
-    c = Constant(mesh, (PETSc.ScalarType(2), PETSc.ScalarType(2)))
+    c = Constant(mesh, np.arange(1, gdim + 1, dtype=PETSc.ScalarType))
     dofs0 = locate_dofs_topological(W.sub(0), tdim - 1, boundary_facets)
     bc0 = dirichletbc(c, dofs0, W.sub(0))
     u = U.sub(0)
     set_bc(u.vector, [bc0])
 
     # Apply BC to component of a mixed space using a Function
+
+    def f(x):
+        vals = np.zeros((gdim, x.shape[1]), dtype=PETSc.ScalarType)
+        for i in range(gdim):
+            vals[i] = i + 1
+        return vals
     ubc1 = u.collapse()
-    ubc1.interpolate(lambda x: np.full((gdim, x.shape[1]), 2.0))
+    ubc1.interpolate(f)
     dofs1 = locate_dofs_topological((W.sub(0), ubc1.function_space), tdim - 1, boundary_facets)
     bc1 = dirichletbc(ubc1, dofs1, W.sub(0))
     U1 = Function(W)
