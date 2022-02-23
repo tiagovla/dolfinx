@@ -170,7 +170,7 @@ public:
       : _index_maps({p.index_map(0),
                      std::make_shared<common::IndexMap>(p.column_index_map())}),
         _bs({p.block_size(0), p.block_size(1)}),
-        _data(p.num_nonzeros(), 0, alloc),
+        _data(_bs[0] * _bs[1] * p.num_nonzeros(), 0, alloc),
         _cols(p.graph().array().begin(), p.graph().array().end()),
         _row_ptr(p.graph().offsets().begin(), p.graph().offsets().end()),
         _comm(p.index_map(0)->comm(common::IndexMap::Direction::reverse))
@@ -205,7 +205,7 @@ public:
     for (std::size_t i = 0; i < dest_ranks.size(); ++i)
       dest_proc_to_neighbor.insert({dest_ranks[i], i});
 
-    // Ownership of each ghost row using neighbor rank
+    // Neighbor rank owner of each ghost row
     _ghost_row_to_neighbor_rank.resize(num_ghosts0, -1);
     for (int i = 0; i < num_ghosts0; ++i)
     {
@@ -214,7 +214,7 @@ public:
       _ghost_row_to_neighbor_rank[i] = it->second;
     }
 
-    // Compute size of data to send to each neighbor
+    // Size of data to send to each neighbor
     std::vector<std::int32_t> data_per_proc(num_neighbors, 0);
     for (int i = 0; i < num_ghosts0; ++i)
     {
@@ -223,14 +223,13 @@ public:
           += _row_ptr[local_size[0] + i + 1] - _row_ptr[local_size[0] + i];
     }
 
-    // Compute send displacements for values and indices (x2)
+    // Send displacements for values and indices (x2)
     _val_send_disp.resize(num_neighbors + 1, 0);
-    std::partial_sum(data_per_proc.begin(), data_per_proc.end(),
+    std::partial_sum(data_per_proc.cbegin(), data_per_proc.cend(),
                      std::next(_val_send_disp.begin()));
-
-    std::vector<int> index_send_disp(num_neighbors + 1);
-    std::transform(_val_send_disp.begin(), _val_send_disp.end(),
-                   index_send_disp.begin(), [](int d) { return d * 2; });
+    std::vector<int> index_send_disp(_val_send_disp.size());
+    std::transform(_val_send_disp.cbegin(), _val_send_disp.cend(),
+                   index_send_disp.begin(), [](auto d) { return d * 2; });
 
     // For each ghost row, pack and send indices to neighborhood
     std::vector<int> insert_pos(index_send_disp);
@@ -263,8 +262,8 @@ public:
 
     // Store received offsets for future use, when transferring data values.
     _val_recv_disp.resize(ghost_index_data_in.offsets().size());
-    std::transform(ghost_index_data_in.offsets().begin(),
-                   ghost_index_data_in.offsets().end(), _val_recv_disp.begin(),
+    std::transform(ghost_index_data_in.offsets().cbegin(),
+                   ghost_index_data_in.offsets().cend(), _val_recv_disp.begin(),
                    [](int d) { return d / 2; });
 
     // Global to local map for ghost columns
@@ -352,10 +351,13 @@ public:
   }
 
   /// Number of local rows excluding ghost rows
-  std::int32_t num_owned_rows() const { return _index_maps[0]->size_local(); }
+  std::int32_t num_owned_rows() const
+  {
+    return _bs[0] * _index_maps[0]->size_local();
+  }
 
   /// Number of local rows including ghost rows
-  std::int32_t num_all_rows() const { return _row_ptr.size() - 1; }
+  std::int32_t num_all_rows() const { return _bs[0] * _row_ptr.size() - 1; }
 
   /// Copy to a dense matrix
   /// @note This function is typically used for debugging and not used
@@ -365,13 +367,17 @@ public:
   /// @return Dense copy of the matrix
   xt::xtensor<T, 2> to_dense() const
   {
-    const std::int32_t nrows = num_all_rows();
-    const std::int32_t ncols
-        = _index_maps[1]->size_local() + _index_maps[1]->num_ghosts();
+    std::int32_t nrows = num_all_rows();
+    std::int32_t ncols
+        = _bs[1]
+          * (_index_maps[1]->size_local() + _index_maps[1]->num_ghosts());
     xt::xtensor<T, 2> A = xt::zeros<T>({nrows, ncols});
     for (std::size_t r = 0; r < nrows; ++r)
-      for (int j = _row_ptr[r]; j < _row_ptr[r + 1]; ++j)
-        A(r, _cols[j]) = _data[j];
+      for (int k0 = 0; k0 < _bs[0]; ++k0)
+        for (int j = _row_ptr[r]; j < _row_ptr[r + 1]; ++j)
+          for (int k1 = 0; k1 < _bs[1]; ++k1)
+            A(_bs[0] * r + k0, _bs[1] * _cols[j] + k1)
+                = _data[_bs[0] * _bs[0] * j + _bs[1] * k0 + k1];
     return A;
   }
 
@@ -399,7 +405,7 @@ public:
     // For each ghost row, pack and send values to send to neighborhood
     std::vector<int> insert_pos(_val_send_disp);
     std::vector<T> ghost_value_data(_val_send_disp.back());
-    for (int i = 0; i < num_ghosts0; ++i)
+    for (std::int32_t i = 0; i < num_ghosts0; ++i)
     {
       const int neighbor_rank = _ghost_row_to_neighbor_rank[i];
 
@@ -456,7 +462,6 @@ public:
   {
     const std::size_t num_owned_rows = _index_maps[0]->size_local();
     assert(num_owned_rows < _row_ptr.size());
-
     const double norm_sq_local = std::accumulate(
         _data.cbegin(), std::next(_data.cbegin(), _row_ptr[num_owned_rows]),
         double(0), [](double norm, T y) { return norm + std::norm(y); });
