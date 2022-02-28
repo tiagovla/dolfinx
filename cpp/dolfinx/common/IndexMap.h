@@ -199,6 +199,10 @@ public:
   const graph::AdjacencyList<std::int32_t>&
   scatter_fwd_indices() const noexcept;
 
+  /// Offsets for received data from a forward scatter
+  /// @return List of offsets for each neighbor
+  const std::vector<std::int32_t>& scatter_fwd_receive_offsets() const noexcept;
+
   /// Position of ghost entries in the receive buffer after a forward
   /// scatter, e.g. for a receive buffer `b` and a set operation, the
   /// ghost values should be updated  by `ghost_value[i] =
