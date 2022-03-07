@@ -345,16 +345,21 @@ XDMFFile::read_meshtags(const std::shared_ptr<const mesh::Mesh>& mesh,
   xt::xtensor<std::int64_t, 2> entities1 = io::cells::compute_permutation(
       entities, io::cells::perm_vtk(cell_type, entities.shape(1)));
 
-  const auto [entities_local, values_local]
+  std::pair<std::vector<std::int32_t>, std::vector<std::int32_t>> dist_data
       = xdmf_utils::distribute_entity_data(*mesh, mesh::cell_dim(cell_type),
                                            entities1, values);
 
   LOG(INFO) << "XDMF create meshtags";
-  auto [data, offset] = graph::create_adjacency_data(entities_local);
-  graph::AdjacencyList<std::int32_t> entities_adj(std::move(data),
-                                                  std::move(offset));
-  mesh::MeshTags meshtags = mesh::create_meshtags(
-      mesh, mesh::cell_dim(cell_type), entities_adj, xtl::span(values_local));
+  int num_vertices_per_entity = mesh::cell_num_entities(
+      mesh::cell_entity_type(mesh->topology().cell_type(),
+                             mesh::cell_dim(cell_type), 0),
+      0);
+  graph::AdjacencyList entities_adj = graph::regular_adjacency_list(
+      std::move(dist_data.first), num_vertices_per_entity);
+
+  mesh::MeshTags meshtags = mesh::create_meshtags<std::int32_t>(
+      mesh, mesh::cell_dim(cell_type), entities_adj,
+      xtl::span(dist_data.second));
   meshtags.name = name;
 
   return meshtags;
