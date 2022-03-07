@@ -67,7 +67,15 @@ void io(py::module& m)
                   mesh, entity_dim, _entities,
                   xtl::span(values.data(), values.size()));
 
-          return std::pair(as_pyarray(std::move(e_data.first), shape),
+          std::size_t num_vertices_per_entity
+              = dolfinx::mesh::cell_num_entities(
+                  dolfinx::mesh::cell_entity_type(mesh.topology().cell_type(),
+                                                  entity_dim, 0),
+                  0);
+
+          std::array shape_e
+              = {std::size_t(entities.shape(0)), num_vertices_per_entity};
+          return std::pair(as_pyarray(std::move(e_data.first), shape_e),
                            as_pyarray(std::move(e_data.second)));
         });
 
