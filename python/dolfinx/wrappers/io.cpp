@@ -52,28 +52,24 @@ void io(py::module& m)
         "Permutation array to map from Gmsh to DOLFINx node ordering");
 
   // TODO: Template for different values dtypes
-//   m.def(
-//       "distribute_entity_data",
-//       [](const dolfinx::mesh::Mesh& mesh, int entity_dim,
-//          const py::array_t<std::int64_t, py::array::c_style>& entities,
-//          const py::array_t<std::int32_t, py::array::c_style>& values)
-//       {
-//         assert(entities.ndim() == 2);
-//         std::array shape
-//             = {std::size_t(entities.shape(0)), std::size_t(entities.shape(1))};
+  m.def("distribute_entity_data",
+        [](const dolfinx::mesh::Mesh& mesh, int entity_dim,
+           const py::array_t<std::int64_t, py::array::c_style>& entities,
+           const py::array_t<std::int32_t, py::array::c_style>& values)
+        {
+          assert(entities.ndim() == 2);
+          std::vector<std::size_t> shape = {std::size_t(entities.shape(0)),
+                                            std::size_t(entities.shape(1))};
+          auto _entities = xt::adapt(entities.data(), entities.size(),
+                                     xt::no_ownership(), shape);
+          std::pair<std::vector<std::int32_t>, std::vector<std::int32_t>> e_data
+              = dolfinx::io::xdmf_utils::distribute_entity_data(
+                  mesh, entity_dim, _entities,
+                  xtl::span(values.data(), values.size()));
 
-//         // The below should work, but misbehaves with the Intel icpx
-//         // compiler
-//         // auto _entities = xt::adapt(entities.data(), entities.size(),
-//         //                            xt::no_ownership(), shape);
-//         xt::xtensor<std::int64_t, 2> _entities(shape);
-//         std::copy_n(entities.data(), entities.size(), _entities.data());
-//         auto [e, v] = dolfinx::io::xdmf_utils::distribute_entity_data(
-//             mesh, entity_dim, _entities,
-//             xtl::span(values.data(), values.size()));
-
-//         return std::pair(xt_as_pyarray(std::move(e)), as_pyarray(std::move(v)));
-//       });
+          return std::pair(as_pyarray(std::move(e_data.first), shape),
+                           as_pyarray(std::move(e_data.second)));
+        });
 
   // dolfinx::io::XDMFFile
   py::class_<dolfinx::io::XDMFFile, std::shared_ptr<dolfinx::io::XDMFFile>>
