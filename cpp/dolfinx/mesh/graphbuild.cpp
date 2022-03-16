@@ -45,6 +45,7 @@ compute_nonlocal_dual_graph(
     const graph::AdjacencyList<std::int32_t>& local_graph)
 {
   LOG(INFO) << "Build nonlocal part of mesh dual graph";
+  MPI_Barrier(comm);
   common::Timer timer("Compute non-local part of mesh dual graph");
 
   // Get number of MPI processes, and return if mesh is not distributed
@@ -290,6 +291,8 @@ compute_nonlocal_dual_graph(
   std::sort(ghost_edges.begin(), ghost_edges.end());
   const std::int32_t num_ghost_edges = std::distance(
       ghost_edges.begin(), std::unique(ghost_edges.begin(), ghost_edges.end()));
+
+  MPI_Barrier(comm);
 
   return {std::move(graph), num_ghost_edges};
 }
