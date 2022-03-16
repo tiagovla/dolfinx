@@ -3,22 +3,17 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+import dolfinx
 import datetime
 import os
-import shutil
 import sys
 
-import dolfinx
+sys.path.insert(0, os.path.abspath('.'))
 
-# Copy demo files into doc source tree and process with pylit
-shutil.rmtree("demos", True)
-shutil.copytree("../../demo", "demos")
+import jupytext_process
 
-#import rstprocess
-#rstprocess.process()
+
+jupytext_process.process()
 
 # -- General configuration ------------------------------------------------
 
@@ -34,7 +29,8 @@ extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.mathjax',
               'sphinx.ext.napoleon',
               'sphinx.ext.todo',
-              'sphinx.ext.viewcode']
+              'sphinx.ext.viewcode',
+              'myst_parser', ]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -42,8 +38,7 @@ templates_path = ['_templates']
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
 #
-# source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The master toctree document.
 master_doc = 'index'
@@ -88,7 +83,7 @@ todo_include_todos = True
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = "nature"
+html_theme = "sphinx_rtd_theme"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -151,4 +146,3 @@ autoclass_content = "both"
 
 napoleon_google_docstring = True
 napoleon_use_admonition_for_notes = False
-

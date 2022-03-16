@@ -187,7 +187,7 @@ void refinement::update_logical_edgefunction(
   // Send all shared edges marked for update and receive from other
   // processes
   const std::vector<std::int64_t> data_to_recv
-      = MPI::neighbor_all_to_all(
+      = dolfinx::MPI::neighbor_all_to_all(
             neighbor_comm,
             graph::AdjacencyList<std::int64_t>(data_to_send, send_offsets))
             .array();
@@ -227,8 +227,7 @@ refinement::create_new_vertices(
 
   const std::int64_t num_local = n;
   std::int64_t global_offset = 0;
-  MPI_Exscan(&num_local, &global_offset, 1,
-             dolfinx::MPI::mpi_type<std::int64_t>(), MPI_SUM, mesh.comm());
+  MPI_Exscan(&num_local, &global_offset, 1, MPI_INT64_T, MPI_SUM, mesh.comm());
   global_offset += mesh.topology().index_map(0)->local_range()[1];
   std::for_each(local_edge_to_new_vertex.begin(),
                 local_edge_to_new_vertex.end(),
@@ -268,7 +267,7 @@ refinement::create_new_vertices(
   }
 
   const std::vector<std::int64_t> received_values
-      = MPI::neighbor_all_to_all(
+      = dolfinx::MPI::neighbor_all_to_all(
             neighbor_comm, graph::AdjacencyList<std::int64_t>(values_to_send))
             .array();
 
@@ -316,8 +315,8 @@ refinement::partition(const mesh::Mesh& old_mesh,
     // FIXME: much of this is reverse engineering of data that is already
     // known in the GraphBuilder
 
-    const int mpi_size = MPI::size(comm);
-    const int mpi_rank = MPI::rank(comm);
+    const int mpi_size = dolfinx::MPI::size(comm);
+    const int mpi_rank = dolfinx::MPI::rank(comm);
     const std::int32_t local_size = graph.num_nodes();
     std::vector<std::int32_t> local_sizes(mpi_size);
     std::vector<std::int64_t> local_offsets(mpi_size + 1);

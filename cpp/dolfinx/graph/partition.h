@@ -23,12 +23,13 @@ namespace dolfinx::graph
 /// Signature of functions for computing the parallel partitioning of a
 /// distributed graph
 ///
-/// @param comm MPI Communicator that the graph is distributed across
-/// @param nparts Number of partitions to divide graph nodes into
-/// @param local_graph Node connectivity graph
-/// @param num_ghost_nodes Number of graph nodes appearing in @p
+/// @param[in] comm MPI Communicator that the graph is distributed
+/// across
+/// @param[in] nparts Number of partitions to divide graph nodes into
+/// @param[in] local_graph Node connectivity graph
+/// @param[in] num_ghost_nodes Number of graph nodes appearing in @p
 /// local_graph that are owned on other processes
-/// @param ghosting Flag to enable ghosting of the output node
+/// @param[in] ghosting Flag to enable ghosting of the output node
 /// distribution
 /// @return Destination rank for each input node
 using partition_fn = std::function<graph::AdjacencyList<std::int32_t>(
@@ -36,12 +37,13 @@ using partition_fn = std::function<graph::AdjacencyList<std::int32_t>(
 
 /// Partition graph across processes using the default graph partitioner
 ///
-/// @param comm MPI Communicator that the graph is distributed across
-/// @param nparts Number of partitions to divide graph nodes into
-/// @param local_graph Node connectivity graph
-/// @param num_ghost_nodes Number of graph nodes appearing in @p
+/// @param[in] comm MPI Communicator that the graph is distributed
+/// across
+/// @param[in] nparts Number of partitions to divide graph nodes into
+/// @param[in] local_graph Node connectivity graph
+/// @param[in] num_ghost_nodes Number of graph nodes appearing in @p
 /// local_graph that are owned on other processes
-/// @param ghosting Flag to enable ghosting of the output node
+/// @param[in] ghosting Flag to enable ghosting of the output node
 /// distribution
 /// @return Destination rank for each input node
 AdjacencyList<std::int32_t>
@@ -61,10 +63,10 @@ namespace build
 /// @param[in] comm MPI Communicator
 /// @param[in] list The adjacency list to distribute
 /// @param[in] destinations Destination ranks for the ith node in the
-///   adjacency list
+/// adjacency list
 /// @return Adjacency list for this process, array of source ranks for
-///   each node in the adjacency list, and the original global index
-///   for each node.
+/// each node in the adjacency list, and the original global index for
+/// each node.
 std::tuple<graph::AdjacencyList<std::int64_t>, std::vector<int>,
            std::vector<std::int64_t>, std::vector<int>>
 distribute(MPI_Comm comm, const graph::AdjacencyList<std::int64_t>& list,
@@ -82,19 +84,22 @@ compute_ghost_indices(MPI_Comm comm,
                       const xtl::span<const std::int64_t>& global_indices,
                       const xtl::span<const int>& ghost_owners);
 
-/// Distribute data to process ranks where it it required
+/// Distribute rows of a rectangular data array to process ranks where
+/// it it required
 ///
 /// @param[in] comm The MPI communicator
-/// @param[in] indices Global indices of the data required by this
-///   process
-/// @param[in] x Data on this process which may be distributed (by
-///   row). The global index for the [0, ..., n) local rows is assumed
-///   to be the local index plus the offset for this rank
-/// @return The data for each index in @p indices
+/// @param[in] indices Global indices of the data (rows) required by
+/// this process
+/// @param[in] x Data on this process which may be distributed (by row).
+/// The global index for the `[0, ..., n)` local rows is assumed to be
+/// the local index plus the offset for this rank. Layout is row-major.
+/// @param[in] shape1 The number of columns of the data array
+/// @return The data for each index in @p indices (row-major storage)
+/// @pre `shape1 > 0`
 template <typename T>
-xt::xtensor<T, 2> distribute_data(MPI_Comm comm,
-                                  const xtl::span<const std::int64_t>& indices,
-                                  const xt::xtensor<T, 2>& x);
+std::vector<T> distribute_data(MPI_Comm comm,
+                               const xtl::span<const std::int64_t>& indices,
+                               const xtl::span<const T>& x, int shape1);
 
 /// Given an adjacency list with global, possibly non-contiguous, link
 /// indices and a local adjacency list with contiguous link indices
@@ -102,8 +107,7 @@ xt::xtensor<T, 2> distribute_data(MPI_Comm comm,
 /// Both adjacency lists must have the same shape.
 ///
 /// @param[in] global Adjacency list with global link indices
-/// @param[in] local Adjacency list with local, contiguous link
-///   indices
+/// @param[in] local Adjacency list with local, contiguous link indices
 /// @return Map from local index to global index, which if applied to
 /// the local adjacency list indices would yield the global adjacency
 /// list
@@ -115,9 +119,9 @@ compute_local_to_global_links(const graph::AdjacencyList<std::int64_t>& global,
 /// common global indices
 ///
 /// @param[in] local0_to_global Map from local0 indices to global
-///   indices
+/// indices
 /// @param[in] local1_to_global Map from local1 indices to global
-///   indices
+/// indices
 /// @return Map from local0 indices to local1 indices
 std::vector<std::int32_t>
 compute_local_to_local(const xtl::span<const std::int64_t>& local0_to_global,
@@ -128,19 +132,21 @@ compute_local_to_local(const xtl::span<const std::int64_t>& local0_to_global,
 // Implementation
 //---------------------------------------------------------------------------
 template <typename T>
-xt::xtensor<T, 2>
+std::vector<T>
 build::distribute_data(MPI_Comm comm,
                        const xtl::span<const std::int64_t>& indices,
-                       const xt::xtensor<T, 2>& x)
+                       const xtl::span<const T>& x, int shape1)
 {
   common::Timer timer("Fetch float data from remote processes");
+  assert(shape1 > 0);
 
-  const std::int64_t num_points_local = x.shape(0);
+  assert(x.size() % shape1 == 0);
+  const std::int64_t shape0 = x.size() / shape1;
   const int size = dolfinx::MPI::size(comm);
   const int rank = dolfinx::MPI::rank(comm);
   std::vector<std::int64_t> global_sizes(size);
-  MPI_Allgather(&num_points_local, 1, MPI_INT64_T, global_sizes.data(), 1,
-                MPI_INT64_T, comm);
+  MPI_Allgather(&shape0, 1, MPI_INT64_T, global_sizes.data(), 1, MPI_INT64_T,
+                comm);
   std::vector<std::int64_t> global_offsets(size + 1, 0);
   std::partial_sum(global_sizes.begin(), global_sizes.end(),
                    global_offsets.begin() + 1);
@@ -194,27 +200,25 @@ build::distribute_data(MPI_Comm comm,
                 number_index_recv.data(), disp_index_recv.data(), MPI_INT64_T,
                 comm);
 
-  assert(x.shape(1) != 0);
   // Pack point data to send back (transpose)
-  xt::xtensor<T, 2> x_return({indices_recv.size(), x.shape(1)});
+  std::vector<T> x_return(indices_recv.size() * shape1);
   for (int p = 0; p < size; ++p)
   {
     for (int i = disp_index_recv[p]; i < disp_index_recv[p + 1]; ++i)
     {
       const std::int32_t index_local = indices_recv[i] - global_offsets[rank];
       assert(index_local >= 0);
-      for (std::size_t j = 0; j < x.shape(1); ++j)
-        x_return(i, j) = x(index_local, j);
+      std::copy_n(std::next(x.cbegin(), shape1 * index_local), shape1,
+                  std::next(x_return.begin(), shape1 * i));
     }
   }
 
   MPI_Datatype compound_type;
-  MPI_Type_contiguous(x.shape(1), dolfinx::MPI::mpi_type<T>(), &compound_type);
+  MPI_Type_contiguous(shape1, dolfinx::MPI::mpi_type<T>(), &compound_type);
   MPI_Type_commit(&compound_type);
 
   // Send back point data
-  xt::xtensor<T, 2> my_x(
-      {static_cast<std::size_t>(disp_index_send.back()), x.shape(1)});
+  std::vector<T> my_x(disp_index_send.back() * shape1);
   MPI_Alltoallv(x_return.data(), number_index_recv.data(),
                 disp_index_recv.data(), compound_type, my_x.data(),
                 number_index_send.data(), disp_index_send.data(), compound_type,

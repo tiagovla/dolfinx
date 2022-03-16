@@ -47,9 +47,6 @@ set_source_files_properties(common/defines.cpp PROPERTIES
 # Set 'Developer' build type flags
 target_compile_options(dolfinx PRIVATE $<$<CONFIG:Developer>:${DOLFINX_CXX_DEVELOPER_FLAGS}>)
 
-# Set debug definitions (private)
-target_compile_definitions(dolfinx PRIVATE $<$<OR:$<CONFIG:Debug>,$<CONFIG:Developer>>:DEBUG>)
-
 # Add version to definitions (public)
 target_compile_definitions(dolfinx PUBLIC DOLFINX_VERSION="${DOLFINX_VERSION}")
 
@@ -79,7 +76,6 @@ endif()
 # Boost
 target_link_libraries(dolfinx PUBLIC Boost::headers)
 target_link_libraries(dolfinx PUBLIC Boost::timer)
-target_link_libraries(dolfinx PRIVATE Boost::filesystem)
 
 # MPI
 target_link_libraries(dolfinx PUBLIC MPI::MPI_CXX)

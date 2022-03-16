@@ -7,7 +7,7 @@
 // Unit tests for Distributed Meshes
 
 #include <basix/finite-element.h>
-#include <catch.hpp>
+#include <catch2/catch.hpp>
 #include <dolfinx.h>
 #include <dolfinx/common/MPI.h>
 #include <dolfinx/graph/partitioners.h>
@@ -61,7 +61,7 @@ void test_distributed_mesh(mesh::CellPartitionFunction partitioner)
   fem::CoordinateElement cmap(e);
 
   // read mesh data
-  xt::xtensor<double, 2> x({0, 3});
+  xt::xtensor<double, 2> x({0, 2});
   xt::xtensor<std::int64_t, 2> cells(
       {0, static_cast<std::size_t>(
               dolfinx::mesh::num_cell_vertices(mesh::CellType::triangle))});
@@ -79,6 +79,7 @@ void test_distributed_mesh(mesh::CellPartitionFunction partitioner)
         graph::AdjacencyList<std::int64_t>(std::move(data), std::move(offsets)),
         mesh::GhostMode::shared_facet);
   }
+  CHECK(x.shape(1) == 2);
 
   auto [data, offsets] = graph::create_adjacency_data(cells);
   graph::AdjacencyList<std::int64_t> cells_topology(std::move(data),
@@ -92,8 +93,8 @@ void test_distributed_mesh(mesh::CellPartitionFunction partitioner)
       mpi_comm, cell_nodes, original_cell_index, ghost_owners,
       cmap.cell_shape(), mesh::GhostMode::shared_facet);
   int tdim = topology.dim();
-  dolfinx::mesh::Geometry geometry
-      = mesh::create_geometry(mpi_comm, topology, cmap, cell_nodes, x);
+  dolfinx::mesh::Geometry geometry = mesh::create_geometry(
+      mpi_comm, topology, cmap, cell_nodes, x, x.shape(1));
 
   auto mesh = std::make_shared<dolfinx::mesh::Mesh>(
       mpi_comm, std::move(topology), std::move(geometry));
@@ -104,13 +105,14 @@ void test_distributed_mesh(mesh::CellPartitionFunction partitioner)
   CHECK(mesh->topology().index_map(0)->size_global() == (N + 1) * (N + 1));
   CHECK(mesh->topology().index_map(0)->size_local() > 0);
 
-  CHECK(mesh->geometry().x().size() / 3
+  CHECK((int)mesh->geometry().x().size() / 3
         == mesh->topology().index_map(0)->size_local()
                + mesh->topology().index_map(0)->num_ghosts());
 
-  MPI_Comm_free(&subset_comm);
-  MPI_Group_free(&new_group);
   MPI_Group_free(&comm_group);
+  MPI_Group_free(&new_group);
+  if (subset_comm != MPI_COMM_NULL)
+    MPI_Comm_free(&subset_comm);
 }
 } // namespace
 

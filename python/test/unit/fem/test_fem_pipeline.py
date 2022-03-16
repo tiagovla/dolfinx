@@ -10,14 +10,14 @@ import pytest
 
 import ufl
 from dolfinx.fem import (Function, FunctionSpace, VectorFunctionSpace,
-                         apply_lifting, assemble_matrix, assemble_scalar,
-                         assemble_vector, dirichletbc, form,
-                         locate_dofs_topological, set_bc)
+                         assemble_scalar, dirichletbc, form,
+                         locate_dofs_topological)
+from dolfinx.fem.petsc import (apply_lifting, assemble_matrix, assemble_vector,
+                               set_bc)
 from dolfinx.io import XDMFFile
 from dolfinx.mesh import (CellType, compute_boundary_facets, create_rectangle,
                           create_unit_cube, create_unit_square,
                           locate_entities_boundary)
-from dolfinx_utils.test.skips import skip_if_complex
 from ufl import (CellDiameter, FacetNormal, SpatialCoordinate, TestFunction,
                  TrialFunction, avg, div, ds, dS, dx, grad, inner, jump)
 
@@ -256,7 +256,8 @@ def test_curl_curl_eigenvalue(family, order):
     assert np.isclose(eigenvalues_sorted[0:eigenvalues_exact.shape[0]], eigenvalues_exact, rtol=1E-2).all()
 
 
-@skip_if_complex
+@pytest.mark.skipif(np.issubdtype(PETSc.ScalarType, np.complexfloating),
+                    reason="This test does not work in complex mode.")
 def test_biharmonic():
     """Manufactured biharmonic problem.
 
@@ -453,7 +454,7 @@ def test_BDM_N2curl_simplex(family, degree, cell_type, datadir):
 
 
 # Skip slowest test in complex to stop CI timing out
-@skip_if_complex
+# @skip_if_complex
 @parametrize_cell_types_simplex
 @pytest.mark.parametrize("family", ["BDM", "N2curl"])
 @pytest.mark.parametrize("degree", [3])

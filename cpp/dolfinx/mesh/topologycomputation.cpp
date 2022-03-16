@@ -300,8 +300,7 @@ get_local_indexing(MPI_Comm comm, const common::IndexMap& cell_indexmap,
   {
     const std::int64_t _num_local = num_local;
     std::int64_t local_offset = 0;
-    MPI_Exscan(&_num_local, &local_offset, 1,
-               dolfinx::MPI::mpi_type<std::int64_t>(), MPI_SUM, comm);
+    MPI_Exscan(&_num_local, &local_offset, 1, MPI_INT64_T, MPI_SUM, comm);
 
     std::vector<std::int64_t> send_global_index_data;
     std::vector<int> send_global_index_offsets = {0};
@@ -355,12 +354,13 @@ get_local_indexing(MPI_Comm comm, const common::IndexMap& cell_indexmap,
   }
 
   MPI_Comm_free(&neighbor_comm);
-
-  common::IndexMap index_map(
-      comm, num_local,
-      dolfinx::MPI::compute_graph_edges(
-          comm, std::set<int>(ghost_owners.begin(), ghost_owners.end())),
-      ghost_indices, ghost_owners);
+  std::vector<int> src_ranks = ghost_owners;
+  std::sort(src_ranks.begin(), src_ranks.end());
+  src_ranks.erase(std::unique(src_ranks.begin(), src_ranks.end()),
+                  src_ranks.end());
+  auto dest_ranks = dolfinx::MPI::compute_graph_edges_nbx(comm, src_ranks);
+  common::IndexMap index_map(comm, num_local, dest_ranks, ghost_indices,
+                             ghost_owners);
 
   // Map from initial numbering to new local indices
   std::vector<std::int32_t> new_entity_index(entity_index.size());
@@ -398,20 +398,19 @@ compute_entities_by_key_matching(
   common::Timer timer("Compute entities of dim = " + std::to_string(dim));
 
   // Initialize local array of entities
-  const std::int8_t num_entities_per_cell
-      = mesh::cell_num_entities(cell_type, dim);
+  const std::int8_t num_entities_per_cell = cell_num_entities(cell_type, dim);
 
   // For some cells, the num_vertices varies per facet (3 or 4)
   int max_vertices_per_entity = 0;
   for (int i = 0; i < num_entities_per_cell; ++i)
   {
-    max_vertices_per_entity = std::max(
-        max_vertices_per_entity,
-        mesh::num_cell_vertices(mesh::cell_entity_type(cell_type, dim, i)));
+    max_vertices_per_entity
+        = std::max(max_vertices_per_entity,
+                   num_cell_vertices(cell_entity_type(cell_type, dim, i)));
   }
 
   // Create map from cell vertices to entity vertices
-  auto e_vertices = mesh::get_entity_vertices(cell_type, dim);
+  auto e_vertices = get_entity_vertices(cell_type, dim);
 
   // List of vertices for each entity in each cell
   const std::size_t num_cells = cells.num_nodes();
@@ -450,16 +449,19 @@ compute_entities_by_key_matching(
 
   std::vector<std::int32_t> entity_index(entity_list.shape(0), 0);
   std::int32_t entity_count = 0;
-  std::int32_t last = sort_order.empty() ? 0 : sort_order.front();
-  for (std::size_t i = 1; i < sort_order.size(); ++i)
+  if (!sort_order.empty())
   {
-    std::int32_t j = sort_order[i];
-    if (xt::row(entity_list_sorted, j) != xt::row(entity_list_sorted, last))
-      ++entity_count;
-    entity_index[j] = entity_count;
-    last = j;
+    std::int32_t last = sort_order.front();
+    for (std::size_t i = 1; i < sort_order.size(); ++i)
+    {
+      std::int32_t j = sort_order[i];
+      if (xt::row(entity_list_sorted, j) != xt::row(entity_list_sorted, last))
+        ++entity_count;
+      entity_index[j] = entity_count;
+      last = j;
+    }
+    ++entity_count;
   }
-  ++entity_count;
 
   // Communicate with other processes to find out which entities are
   // ghosted and shared. Remap the numbering so that ghosts are at the
@@ -580,9 +582,9 @@ compute_from_map(const graph::AdjacencyList<std::int32_t>& c_d0_0,
 
   // Search for edges of facet in map, and recover index
   const auto tri_vertices_ref
-      = mesh::get_entity_vertices(mesh::CellType::triangle, 1);
+      = get_entity_vertices(mesh::CellType::triangle, 1);
   const auto quad_vertices_ref
-      = mesh::get_entity_vertices(mesh::CellType::quadrilateral, 1);
+      = get_entity_vertices(mesh::CellType::quadrilateral, 1);
 
   for (int e = 0; e < c_d0_0.num_nodes(); ++e)
   {

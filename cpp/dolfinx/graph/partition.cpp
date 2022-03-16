@@ -48,8 +48,7 @@ graph::build::distribute(MPI_Comm comm,
   std::int64_t offset_global = 0;
   const std::int64_t num_owned = list.num_nodes();
   MPI_Request request_offset_scan;
-  MPI_Iexscan(&num_owned, &offset_global, 1,
-              dolfinx::MPI::mpi_type<std::int64_t>(), MPI_SUM, comm,
+  MPI_Iexscan(&num_owned, &offset_global, 1, MPI_INT64_T, MPI_SUM, comm,
               &request_offset_scan);
 
   const int size = dolfinx::MPI::size(comm);
@@ -113,7 +112,7 @@ graph::build::distribute(MPI_Comm comm,
   std::vector<std::int64_t>().swap(data_send);
 
   // Unpack receive buffer
-  int mpi_rank = MPI::rank(comm);
+  int mpi_rank = dolfinx::MPI::rank(comm);
   std::vector<std::int64_t> array;
   std::vector<std::int64_t> ghost_array;
   std::vector<std::int64_t> global_indices;
@@ -189,8 +188,7 @@ std::vector<std::int64_t> graph::build::compute_ghost_indices(
 
   std::int64_t offset_local = 0;
   MPI_Request request_offset_scan;
-  MPI_Iexscan(&num_local, &offset_local, 1,
-              dolfinx::MPI::mpi_type<std::int64_t>(), MPI_SUM, comm,
+  MPI_Iexscan(&num_local, &offset_local, 1, MPI_INT64_T, MPI_SUM, comm,
               &request_offset_scan);
 
   // Find out how many ghosts are on each neighboring process
@@ -198,7 +196,7 @@ std::vector<std::int64_t> graph::build::compute_ghost_indices(
   std::vector<int> neighbors;
   std::map<int, int> proc_to_neighbor;
   int np = 0;
-  [[maybe_unused]] int mpi_rank = MPI::rank(comm);
+  [[maybe_unused]] int mpi_rank = dolfinx::MPI::rank(comm);
   for (int p : ghost_owners)
   {
     assert(p != mpi_rank);
@@ -234,17 +232,22 @@ std::vector<std::int64_t> graph::build::compute_ghost_indices(
   {
     // Owning process
     int p = ghost_owners[i];
+
     // Owning neighbor
     int np = proc_to_neighbor[p];
+
     // Send data location
     int pos = ghost_index_offset[np];
     send_data[pos] = global_indices[num_local + i];
     ++ghost_index_offset[np];
   }
 
-  std::vector<int> recv_sizes(neighbors.size());
+  std::vector<int> recv_sizes(neighbors.size() + 1);
+  ghost_index_count.push_back(0);
   MPI_Neighbor_alltoall(ghost_index_count.data(), 1, MPI_INT, recv_sizes.data(),
                         1, MPI_INT, neighbor_comm);
+  ghost_index_count.pop_back();
+  recv_sizes.pop_back();
   std::vector<int> recv_offsets = {0};
   for (int q : recv_sizes)
     recv_offsets.push_back(recv_offsets.back() + q);
@@ -306,6 +309,10 @@ std::vector<std::int64_t> graph::build::compute_local_to_global_links(
   common::Timer timer(
       "Compute-local-to-global links for global/local adjacency list");
 
+  // Return if gloabl and local are empty
+  if (global.num_nodes() == 0 and local.num_nodes() == 0)
+    return std::vector<std::int64_t>();
+
   // Build local-to-global for adjacency lists
   if (global.num_nodes() != local.num_nodes())
   {
@@ -321,10 +328,9 @@ std::vector<std::int64_t> graph::build::compute_local_to_global_links(
                              "global adjacency lists.");
   }
 
-  // const std::int32_t max_local = _local.maxCoeff();
-  const std::int32_t max_local
+  const std::int32_t max_local_idx
       = *std::max_element(_local.begin(), _local.end());
-  std::vector<std::int64_t> local_to_global_list(max_local + 1, -1);
+  std::vector<std::int64_t> local_to_global_list(max_local_idx + 1, -1);
   for (std::size_t i = 0; i < _local.size(); ++i)
   {
     if (local_to_global_list[_local[i]] == -1)
