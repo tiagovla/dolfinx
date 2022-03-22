@@ -16,12 +16,39 @@
 namespace dolfinx::mesh
 {
 
-/// Create a uniform mesh::Mesh over the rectangular prism spanned by
-/// the two points @p p. The order of the two points is not important in
-/// terms of minimum and maximum coordinates. The total number of
-/// vertices will be `(n[0] + 1)*(n[1] + 1)*(n[2] + 1)`. For tetrahedra
-/// there will be  will be `6*n[0]*n[1]*n[2]` cells. For hexahedra the
-/// number of cells will be `n[0]*n[1]*n[2]`.
+/// @brief Create a uniform mesh::Mesh on a sub-communicator over the
+/// rectangular prism spanned by the two points.
+///
+/// The order of the two points is not important in terms of minimum and
+/// maximum coordinates. The total number of vertices will be `(n[0] +
+/// 1)*(n[1] + 1)*(n[2] + 1)`. For tetrahedra there will be  will be
+/// `6*n[0]*n[1]*n[2]` cells. For hexahedra the number of cells will be
+/// `n[0]*n[1]*n[2]`.
+///
+/// @param[in] comm0 MPI communicator to define the returned mesh on
+/// @param[in] comm1 MPI communicator to construct and partition the mesh
+/// @param[in] p Points of box
+/// @param[in] n Number of cells in each direction
+/// @param[in] celltype Cell shape
+/// @param[in] ghost_mode Ghost mode
+/// @param[in] partitioner Partitioning function to use for
+/// determining the parallel distribution of cells across MPI ranks
+/// @return Mesh
+Mesh create_box(MPI_Comm comm0, MPI_Comm comm1,
+                const std::array<std::array<double, 3>, 2>& p,
+                std::array<std::size_t, 3> n, CellType celltype,
+                GhostMode ghost_mode,
+                const mesh::CellPartitionFunction& partitioner
+                = create_cell_partitioner());
+
+/// @brief Create a uniform mesh::Mesh over the rectangular prism spanned by
+/// the two points.
+///
+/// The order of the two points is not important in terms of minimum and
+/// maximum coordinates. The total number of vertices will be `(n[0] +
+/// 1)*(n[1] + 1)*(n[2] + 1)`. For tetrahedra there will be  will be
+/// `6*n[0]*n[1]*n[2]` cells. For hexahedra the number of cells will be
+/// `n[0]*n[1]*n[2]`.
 ///
 /// @param[in] comm MPI communicator to build mesh on
 /// @param[in] p Points of box

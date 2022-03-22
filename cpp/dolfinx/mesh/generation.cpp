@@ -87,21 +87,26 @@ create_geom(MPI_Comm comm, const std::array<std::array<double, 3>, 2>& p,
   return geom;
 }
 //-----------------------------------------------------------------------------
-mesh::Mesh build_tet(MPI_Comm comm,
+mesh::Mesh build_tet(MPI_Comm comm0, MPI_Comm comm1,
                      const std::array<std::array<double, 3>, 2>& p,
                      std::array<std::size_t, 3> n, GhostMode ghost_mode,
                      const CellPartitionFunction& partitioner)
 {
   common::Timer timer("Build BoxMesh");
 
-  xt::xtensor<double, 2> geom = create_geom(comm, p, n);
-
   const std::int64_t nx = n[0];
   const std::int64_t ny = n[1];
   const std::int64_t nz = n[2];
   const std::int64_t n_cells = nx * ny * nz;
-  std::array range_c = dolfinx::MPI::local_range(
-      dolfinx::MPI::rank(comm), n_cells, dolfinx::MPI::size(comm));
+
+  std::array<std::int64_t, 2> range_c = {0, 0};
+  xt::xtensor<double, 2> geom = xt::empty<double>({0, 3});
+  if (comm1 != MPI_COMM_NULL)
+  {
+    range_c = dolfinx::MPI::local_range(dolfinx::MPI::rank(comm1), n_cells,
+                                        dolfinx::MPI::size(comm1));
+    geom = create_geom(comm1, p, n);
+  }
   const std::size_t cell_range = range_c[1] - range_c[0];
   xt::xtensor<std::int64_t, 2> cells({6 * cell_range, 4});
 
@@ -138,7 +143,7 @@ mesh::Mesh build_tet(MPI_Comm comm,
   fem::CoordinateElement element(CellType::tetrahedron, 1);
   auto [data, offset] = graph::create_adjacency_data(cells);
   return create_mesh(
-      comm,
+      comm0,
       graph::AdjacencyList<std::int64_t>(std::move(data), std::move(offset)),
       element, geom, ghost_mode, partitioner);
 }
@@ -247,7 +252,7 @@ mesh::Mesh build_prism(MPI_Comm comm,
 } // namespace
 
 //-----------------------------------------------------------------------------
-mesh::Mesh mesh::create_box(MPI_Comm comm,
+mesh::Mesh mesh::create_box(MPI_Comm comm0, MPI_Comm comm1,
                             const std::array<std::array<double, 3>, 2>& p,
                             std::array<std::size_t, 3> n, CellType celltype,
                             GhostMode ghost_mode,
@@ -256,15 +261,25 @@ mesh::Mesh mesh::create_box(MPI_Comm comm,
   switch (celltype)
   {
   case CellType::tetrahedron:
-    return build_tet(comm, p, n, ghost_mode, partitioner);
+    return build_tet(comm0, comm1, p, n, ghost_mode, partitioner);
   case CellType::hexahedron:
-    return build_hex(comm, p, n, ghost_mode, partitioner);
+    return build_hex(comm0, p, n, ghost_mode, partitioner);
   case CellType::prism:
-    return build_prism(comm, p, n, ghost_mode, partitioner);
+    return build_prism(comm0, p, n, ghost_mode, partitioner);
   default:
     throw std::runtime_error("Generate box mesh. Wrong cell type");
   }
 }
+//-----------------------------------------------------------------------------
+mesh::Mesh mesh::create_box(MPI_Comm comm,
+                            const std::array<std::array<double, 3>, 2>& p,
+                            std::array<std::size_t, 3> n, CellType celltype,
+                            GhostMode ghost_mode,
+                            const CellPartitionFunction& partitioner)
+{
+  return create_box(comm, comm, p, n, celltype, ghost_mode, partitioner);
+}
+//-----------------------------------------------------------------------------
 
 namespace
 {

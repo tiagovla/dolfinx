@@ -579,7 +579,6 @@ graph::partition_fn graph::parmetis::partitioner(double imbalance,
       // FIXME: Is it implicit the the first entry is the owner?
       graph::AdjacencyList<int> dest
           = compute_destination_ranks(pcomm, graph, node_disp, part);
-
       MPI_Comm_free(&pcomm);
       return dest;
     }
