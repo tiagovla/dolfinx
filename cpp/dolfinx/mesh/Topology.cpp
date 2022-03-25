@@ -24,6 +24,18 @@ using namespace dolfinx::mesh;
 
 namespace
 {
+
+/// @brief Find an entry in an a sorted container of `std::pair` objects
+/// by the first element of the pair.
+///
+/// @note This function uses `std::lower_bound`, hence the input
+/// container should be sorted. To check that an enty is found, the
+/// return iterators should be checked against the `value.`
+///
+/// @param[in] x Sorted container of `std::pair` objects
+/// @param[in] value The value to find in the container (first entry of
+/// the pair)
+/// @return Iterator to the position in `x` where `value` is found
 template <typename T>
 auto find_idx(T& x, typename T::value_type::first_type value)
 {
@@ -41,10 +53,14 @@ auto find_idx(T& x, typename T::value_type::first_type value)
 ///
 /// @note Collective
 ///
-/// A random number generator is used to determine the unique ownership.
+/// Indices are sent to a 'post office' rank, which uses a
+/// (deterministic) random number generator to determine which ranks is
+/// the 'owner'. This information is sent back to the ranks who sent the
+/// index to the post office,
 ///
 /// @param[in] comm MPI communicator
-/// @param[in] indices Global indices to determine a an owning MPI ranks for
+/// @param[in] indices Global indices to determine a an owning MPI ranks
+/// for.
 /// @return Map from global index to sharing ranks for each index in
 /// indices. The owner rank is the first as the first in the of ranks.
 graph::AdjacencyList<int>
@@ -501,10 +517,6 @@ std::vector<std::int64_t> exchange_ghost_vertex_numbering(
   {
     for (int rank : vertex_ranks.second)
     {
-      // auto rank_it = global_to_neighbor_rank.find(rank);
-      // assert(rank_it != global_to_neighbor_rank.end());
-      // send_sizes[rank_it->second] += 3;
-
       auto rank_it = std::lower_bound(local_to_global_rank.begin(),
                                       local_to_global_rank.end(), rank);
       assert(rank_it != local_to_global_rank.end());
@@ -795,8 +807,10 @@ mesh::create_topology(MPI_Comm comm,
   else
   {
     // Get global indices of ghost cells
+    xtl::span cell_idx(original_cell_index);
     const std::vector cell_ghost_indices = graph::build::compute_ghost_indices(
-        comm, original_cell_index, ghost_owners);
+        comm, cell_idx.first(cells.num_nodes() - ghost_owners.size()),
+        cell_idx.last(ghost_owners.size()), ghost_owners);
 
     // Determine src ranks
     std::vector<int> src_ranks(ghost_owners.begin(), ghost_owners.end());
