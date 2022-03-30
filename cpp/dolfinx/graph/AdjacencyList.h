@@ -134,14 +134,20 @@ public:
     /// X
     using reference = xtl::span<X>&; /// or also value_type&
 
-    Iterator(V& array, const std::vector<std::int32_t>& offsets, std::size_t p)
-        : _array(array), _offsets(offsets), pos(p)
+    Iterator(V& array, const std::vector<std::int32_t>& offsets,
+             std::vector<std::int32_t>::const_iterator it)
+        : _array(array), _offsets(offsets), _it(it)
     {
-      if (p < _offsets.size())
-      {
-        _row = xtl::span<X>(_array.data() + _offsets[pos],
-                            _offsets[pos + 1] - _offsets[pos]);
-      }
+      if (std::next(_it) != _offsets.end())
+        _row = xtl::span<X>(_array.data() + *_it, *(_it + 1) - *_it);
+    }
+
+    // difference_type operator-(const Iterator& it) { return it._it - ptr -
+    // it.ptr; }
+
+    difference_type distance(const Iterator& first, const Iterator& last) const
+    {
+      return std::distance(first._it, last._it);
     }
 
     /// X
@@ -153,12 +159,9 @@ public:
     /// X
     Iterator& operator++()
     {
-      pos++;
-      if (pos < _offsets.size() )
-      {
-        _row = xtl::span<X>(_array.data() + _offsets[pos],
-                            _offsets[pos + 1] - _offsets[pos]);
-      }
+      ++_it;
+      if (std::next(_it) != _offsets.end())
+        _row = xtl::span<X>(_array.data() + *_it, *(_it + 1) - *_it);
       else
         _row = xtl::span<X>();
 
@@ -187,30 +190,35 @@ public:
   private:
     V& _array;
     const std::vector<std::int32_t>& _offsets;
+    std::vector<std::int32_t>::const_iterator _it;
 
-    std::size_t pos;
     xtl::span<X> _row;
   };
 
   /// Begin iterator
-  auto begin() { return Iterator<std::vector<T>>(_array, _offsets, 0); }
+  auto begin()
+  {
+    return Iterator<std::vector<T>>(_array, _offsets, _offsets.begin());
+  }
 
   /// End iterator
   auto end()
   {
-    return Iterator<std::vector<T>>(_array, _offsets, _offsets.size());
+    return Iterator<std::vector<T>>(_array, _offsets,
+                                    std::prev(_offsets.end()));
   }
 
   /// Begin iterator (const)
   auto begin() const
   {
-    return Iterator<const std::vector<T>>(_array, _offsets, 0);
+    return Iterator<const std::vector<T>>(_array, _offsets, _offsets.begin());
   }
 
   /// End iterator (const)
   auto end() const
   {
-    return Iterator<const std::vector<T>>(_array, _offsets, _offsets.size());
+    return Iterator<const std::vector<T>>(_array, _offsets,
+                                          std::prev(_offsets.end()));
   }
 
   /// Get the number of nodes
