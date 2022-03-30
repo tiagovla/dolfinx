@@ -50,7 +50,7 @@ reorder_owned(const graph::AdjacencyList<std::int32_t>& dofmap,
 
   // Compute maximum number of graph out edges edges per dof
   std::vector<int> num_edges(owned_size);
-  for (std::int32_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
   {
     auto nodes = dofmap.links(cell);
     for (auto n0 : nodes)
@@ -73,7 +73,7 @@ reorder_owned(const graph::AdjacencyList<std::int32_t>& dofmap,
   std::partial_sum(num_edges.begin(), num_edges.end(),
                    std::next(offsets.begin(), 1));
   std::vector<std::int32_t> edges(offsets.back());
-  for (std::int32_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
   {
     auto nodes = dofmap.links(cell);
     for (auto n0 : nodes)
@@ -214,7 +214,7 @@ build_basic_dofmap(const mesh::Topology& topology,
   std::vector<std::pair<std::int8_t, std::int32_t>> dof_entity(local_size);
 
   // Loops over cells and build dofmaps from ElementDofmap
-  for (int c = 0; c < connectivity[0]->num_nodes(); ++c)
+  for (std::size_t c = 0; c < connectivity[0]->num_nodes(); ++c)
   {
     // Get local (process) and global indices for each cell entity
     for (int d = 0; d < D; ++d)
@@ -351,7 +351,7 @@ std::pair<std::vector<std::int32_t>, std::int32_t> compute_reordering_map(
   // owned dofs. Set to -1 for unowned dofs.
   std::vector<int> original_to_contiguous(dof_entity.size(), -1);
   std::int32_t counter_owned(0), counter_unowned(owned_size);
-  for (std::int32_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
   {
     auto dofs = dofmap.links(cell);
     for (std::size_t i = 0; i < dofs.size(); ++i)
@@ -615,7 +615,7 @@ fem::build_dofmap_data(
 
   // Build re-ordered dofmap
   std::vector<std::int32_t> dofmap(node_graph0.array().size());
-  for (std::int32_t cell = 0; cell < node_graph0.num_nodes(); ++cell)
+  for (std::size_t cell = 0; cell < node_graph0.num_nodes(); ++cell)
   {
     // Get dof order on this cell
     auto old_nodes = node_graph0.links(cell);

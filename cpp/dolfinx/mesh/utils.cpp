@@ -45,7 +45,7 @@ mesh::extract_topology(const CellType& cell_type,
 
   // Extract vertices
   std::vector<std::int64_t> topology(cells.num_nodes() * num_vertices_per_cell);
-  for (int c = 0; c < cells.num_nodes(); ++c)
+  for (std::size_t c = 0; c < cells.num_nodes(); ++c)
   {
     auto p = cells.links(c);
     for (int j = 0; j < num_vertices_per_cell; ++j)
@@ -242,7 +242,7 @@ std::vector<std::int32_t> mesh::locate_entities(
   auto c_to_v = topology.connectivity(tdim, 0);
   assert(c_to_v);
   std::vector<std::int32_t> vertex_to_node(num_vertices);
-  for (int c = 0; c < c_to_v->num_nodes(); ++c)
+  for (std::size_t c = 0; c < c_to_v->num_nodes(); ++c)
   {
     auto x_dofs = x_dofmap.links(c);
     auto vertices = c_to_v->links(c);
@@ -269,7 +269,7 @@ std::vector<std::int32_t> mesh::locate_entities(
   auto e_to_v = topology.connectivity(dim, 0);
   assert(e_to_v);
   std::vector<std::int32_t> entities;
-  for (int e = 0; e < e_to_v->num_nodes(); ++e)
+  for (std::size_t e = 0; e < e_to_v->num_nodes(); ++e)
   {
     // Iterate over entity vertices
     bool all_vertices_marked = true;

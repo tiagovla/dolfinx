@@ -23,7 +23,7 @@ void sparsitybuild::cells(
   const int D = topology.dim();
   auto cells = topology.connectivity(D, 0);
   assert(cells);
-  for (int c = 0; c < cells->num_nodes(); ++c)
+  for (std::size_t c = 0; c < cells->num_nodes(); ++c)
   {
     pattern.insert(dofmaps[0].get().cell_dofs(c),
                    dofmaps[1].get().cell_dofs(c));

@@ -542,7 +542,7 @@ compute_from_transpose(const graph::AdjacencyList<std::int32_t>& c_d1_d0,
 
   // Compute number of connections for each e0
   std::vector<std::int32_t> num_connections(num_entities_d0, 0);
-  for (int e1 = 0; e1 < c_d1_d0.num_nodes(); ++e1)
+  for (std::size_t e1 = 0; e1 < c_d1_d0.num_nodes(); ++e1)
   {
     for (std::int32_t e0 : c_d1_d0.links(e1))
       num_connections[e0]++;
@@ -555,7 +555,7 @@ compute_from_transpose(const graph::AdjacencyList<std::int32_t>& c_d1_d0,
 
   std::vector<std::int32_t> counter(num_connections.size(), 0);
   std::vector<std::int32_t> connections(offsets[offsets.size() - 1]);
-  for (int e1 = 0; e1 < c_d1_d0.num_nodes(); ++e1)
+  for (std::size_t e1 = 0; e1 < c_d1_d0.num_nodes(); ++e1)
     for (std::int32_t e0 : c_d1_d0.links(e1))
       connections[offsets[e0] + counter[e0]++] = e1;
 
@@ -584,7 +584,7 @@ compute_from_map(const graph::AdjacencyList<std::int32_t>& c_d0_0,
   edge_to_index.reserve(c_d1_0.num_nodes());
 
   std::array<std::int32_t, 2> key;
-  for (int e = 0; e < c_d1_0.num_nodes(); ++e)
+  for (std::size_t e = 0; e < c_d1_0.num_nodes(); ++e)
   {
     xtl::span<const std::int32_t> v = c_d1_0.links(e);
     assert(v.size() == key.size());
@@ -604,7 +604,7 @@ compute_from_map(const graph::AdjacencyList<std::int32_t>& c_d0_0,
   const auto quad_vertices_ref
       = get_entity_vertices(mesh::CellType::quadrilateral, 1);
 
-  for (int e = 0; e < c_d0_0.num_nodes(); ++e)
+  for (std::size_t e = 0; e < c_d0_0.num_nodes(); ++e)
   {
     auto e0 = c_d0_0.links(e);
     auto vref = (e0.size() == 3) ? &tri_vertices_ref : &quad_vertices_ref;

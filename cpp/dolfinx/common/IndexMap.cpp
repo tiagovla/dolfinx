@@ -676,7 +676,7 @@ std::map<std::int32_t, std::set<int>> IndexMap::compute_shared_indices() const
   std::map<std::int32_t, std::set<int>> shared_indices;
 
   // Build map from owned local index to ranks that ghost the index
-  for (std::int32_t p = 0; p < _shared_indices->num_nodes(); ++p)
+  for (std::size_t p = 0; p < _shared_indices->num_nodes(); ++p)
   {
     const int rank_global = neighbors_out[p];
     for (std::int32_t idx : _shared_indices->links(p))
@@ -690,7 +690,7 @@ std::map<std::int32_t, std::set<int>> IndexMap::compute_shared_indices() const
 
   std::vector<std::int64_t> fwd_sharing_data;
   std::vector<int> fwd_sharing_offsets{0};
-  for (std::int32_t p = 0; p < _shared_indices->num_nodes(); ++p)
+  for (std::size_t p = 0; p < _shared_indices->num_nodes(); ++p)
   {
     for (std::int32_t idx : _shared_indices->links(p))
     {
@@ -821,7 +821,7 @@ IndexMap::create_submap(const xtl::span<const std::int32_t>& indices) const
   // Loop over ranks that ghost data in the original map
   std::vector<int> ranks_old_to_new_send(_shared_indices->num_nodes(), -1);
   std::vector<std::int32_t> shared_indices_data, shared_indices_off(1, 0);
-  for (std::int32_t r_old = 0; r_old < _shared_indices->num_nodes(); ++r_old)
+  for (std::size_t r_old = 0; r_old < _shared_indices->num_nodes(); ++r_old)
   {
     // For indices sent to old rank r_old, add the new index
     int num_indices = 0;

@@ -42,7 +42,7 @@ graph::build::distribute(MPI_Comm comm,
 {
   common::Timer timer("Distribute AdjacencyList nodes to destination ranks");
 
-  assert(list.num_nodes() == (int)destinations.num_nodes());
+  assert(list.num_nodes() == destinations.num_nodes());
   const int rank = dolfinx::MPI::rank(comm);
 
   // Get global offset for converting local index to global index for
@@ -68,11 +68,11 @@ graph::build::distribute(MPI_Comm comm,
   // Build (dest, index, owning rank) list and sort
   std::vector<std::array<int, 3>> dest_to_index;
   dest_to_index.reserve(destinations.array().size());
-  for (std::int32_t i = 0; i < destinations.num_nodes(); ++i)
+  for (std::size_t i = 0; i < destinations.num_nodes(); ++i)
   {
     auto di = destinations.links(i);
     for (auto d : di)
-      dest_to_index.push_back({d, i, di[0]});
+      dest_to_index.push_back({d, static_cast<int>(i), di[0]});
   }
   std::sort(dest_to_index.begin(), dest_to_index.end());
 

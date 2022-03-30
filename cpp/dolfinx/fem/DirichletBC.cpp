@@ -517,7 +517,7 @@ std::array<std::vector<std::int32_t>, 2> fem::locate_dofs_geometrical(
   // Iterate over cells
   const mesh::Topology& topology = mesh->topology();
   std::vector<std::array<std::int32_t, 2>> bc_dofs;
-  for (int c = 0; c < topology.connectivity(tdim, 0)->num_nodes(); ++c)
+  for (std::size_t c = 0; c < topology.connectivity(tdim, 0)->num_nodes(); ++c)
   {
     // Get cell dofmaps
     auto cell_dofs0 = dofmap0->cell_dofs(c);

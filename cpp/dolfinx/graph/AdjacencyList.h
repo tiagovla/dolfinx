@@ -113,12 +113,12 @@ public:
 
   /// Get the number of nodes
   /// @return The number of nodes in the adjacency list
-  std::int32_t num_nodes() const { return _offsets.size() - 1; }
+   std::size_t num_nodes() const { return _offsets.size() - 1; }
 
   /// Number of connections for given node
   /// @param [in] node Node index
   /// @return The number of outgoing links (edges) from the node
-  int num_links(int node) const
+  std::size_t num_links(int node) const
   {
     assert((node + 1) < (int)_offsets.size());
     return _offsets[node + 1] - _offsets[node];

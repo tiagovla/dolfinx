@@ -422,7 +422,7 @@ std::vector<std::int64_t> exchange_vertex_numbering(
   // Pack send data. Use std::vector<std::vector>> since size will be
   // small (equal to number of neighbour ranks)
   std::vector<std::vector<std::int64_t>> send_buffer(src_dest.size());
-  for (std::int32_t i = 0; i < vertex_to_ranks.num_nodes(); ++i)
+  for (std::size_t i = 0; i < vertex_to_ranks.num_nodes(); ++i)
   {
     // Get (global) ranks that share this vertex. Note that first rank
     // is the owner.
@@ -500,7 +500,7 @@ std::vector<std::int64_t> exchange_ghost_vertex_numbering(
     const std::vector<int> fwd_ranks = dolfinx::MPI::neighbors(
         index_map_c.comm(common::IndexMap::Direction::forward))[1];
 
-    for (int r = 0; r < fwd_shared_cells.num_nodes(); ++r)
+    for (std::size_t r = 0; r < fwd_shared_cells.num_nodes(); ++r)
     {
       // Iterate over cells that are shared by rank r
       for (std::int32_t c : fwd_shared_cells.links(r))
@@ -802,7 +802,7 @@ mesh::create_topology(MPI_Comm comm,
 
   LOG(INFO) << "Create topology";
   if (cells.num_nodes() > 0
-      and cells.num_links(0) != num_cell_vertices(cell_type))
+      and static_cast<int>(cells.num_links(0)) != num_cell_vertices(cell_type))
   {
     throw std::runtime_error(
         "Inconsistent number of cell vertices. Got "
@@ -853,7 +853,7 @@ mesh::create_topology(MPI_Comm comm,
   std::vector<std::int32_t> local_vertex_indices(owned_vertices.size(), -1);
   {
     std::int32_t v = 0;
-    for (std::int32_t c = 0; c < cells.num_nodes(); ++c)
+    for (std::size_t c = 0; c < cells.num_nodes(); ++c)
     {
       for (auto vtx : cells.links(c))
       {
@@ -1105,10 +1105,10 @@ mesh::entities_to_index(const mesh::Topology& topology, int dim,
   std::vector<std::int32_t> indices;
   indices.reserve(entities.num_nodes());
   std::vector<std::int32_t> vertices(num_vertices_per_entity);
-  for (std::int32_t e = 0; e < entities.num_nodes(); ++e)
+  for (std::size_t e = 0; e < entities.num_nodes(); ++e)
   {
     auto v = entities.links(e);
-    assert(num_vertices_per_entity == entities.num_links(e));
+    assert(num_vertices_per_entity == static_cast<int>(entities.num_links(e)));
     std::copy(v.begin(), v.end(), vertices.begin());
     std::sort(vertices.begin(), vertices.end());
 

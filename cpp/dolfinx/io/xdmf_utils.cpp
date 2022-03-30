@@ -42,7 +42,7 @@ graph::AdjacencyList<T> all_to_all(MPI_Comm comm,
   const std::vector<T>& values_in = send_data.array();
 
   const int comm_size = dolfinx::MPI::size(comm);
-  assert(send_data.num_nodes() == comm_size);
+  assert(static_cast<int>(send_data.num_nodes()) == comm_size);
 
   // Data size per destination rank
   std::vector<int> send_size(comm_size);
@@ -620,7 +620,7 @@ xdmf_utils::distribute_entity_data(
 
     // Build map from global node index to ranks that have the node
     std::multimap<std::int64_t, int> node_to_rank;
-    for (int p = 0; p < nodes_g_recv.num_nodes(); ++p)
+    for (std::size_t p = 0; p < nodes_g_recv.num_nodes(); ++p)
     {
       auto nodes = nodes_g_recv.links(p);
       for (std::int32_t node : nodes)
@@ -701,7 +701,7 @@ xdmf_utils::distribute_entity_data(
     const graph::AdjacencyList<std::int32_t>& x_dofmap
         = mesh.geometry().dofmap();
     std::map<std::int64_t, std::int32_t> igi_to_vertex;
-    for (int c = 0; c < c_to_v->num_nodes(); ++c)
+    for (std::size_t c = 0; c < c_to_v->num_nodes(); ++c)
     {
       auto vertices = c_to_v->links(c);
       auto x_dofs = x_dofmap.links(c);

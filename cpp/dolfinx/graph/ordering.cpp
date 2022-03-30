@@ -75,8 +75,8 @@ residual_graph_components(const graph::AdjacencyList<int>& graph,
 // Get the (maximum) width of a level structure
 int max_level_width(const graph::AdjacencyList<int>& levels)
 {
-  int wmax = 0;
-  for (int i = 0; i < levels.num_nodes(); ++i)
+  std::size_t wmax = 0;
+  for (std::size_t i = 0; i < levels.num_nodes(); ++i)
     wmax = std::max(wmax, levels.num_links(i));
   return wmax;
 }

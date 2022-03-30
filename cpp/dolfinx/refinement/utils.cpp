@@ -335,10 +335,10 @@ refinement::partition(const mesh::Mesh& old_mesh,
     destinations.reserve(graph.num_nodes());
     std::vector<std::int32_t> dest_offsets = {0};
     dest_offsets.reserve(graph.num_nodes());
-    for (int i = 0; i < graph.num_nodes(); ++i)
+    for (std::size_t i = 0; i < graph.num_nodes(); ++i)
     {
       destinations.push_back(mpi_rank);
-      for (int j = 0; j < graph.num_links(i); ++j)
+      for (std::size_t j = 0; j < graph.num_links(i); ++j)
       {
         std::int64_t index = graph.links(i)[j];
         if (index < local_offsets[mpi_rank]

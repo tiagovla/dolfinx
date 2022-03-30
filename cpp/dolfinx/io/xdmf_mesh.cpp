@@ -65,7 +65,7 @@ void xdmf_mesh::add_topology_data(MPI_Comm comm, pugi::xml_node& xml_node,
   {
     for (std::int32_t c : entities)
     {
-      assert(c < cells_g.num_nodes());
+      assert(c < static_cast<std::int32_t>(cells_g.num_nodes()));
       auto nodes = cells_g.links(c);
       for (std::size_t i = 0; i < nodes.size(); ++i)
       {
