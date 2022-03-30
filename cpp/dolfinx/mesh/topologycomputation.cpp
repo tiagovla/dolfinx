@@ -586,7 +586,7 @@ compute_from_map(const graph::AdjacencyList<std::int32_t>& c_d0_0,
   std::array<std::int32_t, 2> key;
   for (std::size_t e = 0; e < c_d1_0.num_nodes(); ++e)
   {
-    xtl::span<const std::int32_t> v = c_d1_0.links(e);
+    auto v = c_d1_0.links(e);
     assert(v.size() == key.size());
     std::partial_sort_copy(v.begin(), v.end(), key.begin(), key.end());
     edge_to_index.insert({key, e});
@@ -610,11 +610,11 @@ compute_from_map(const graph::AdjacencyList<std::int32_t>& c_d0_0,
     auto vref = (e0.size() == 3) ? &tri_vertices_ref : &quad_vertices_ref;
     for (std::size_t i = 0; i < e0.size(); ++i)
     {
-      const auto& v = vref->links(i);
+      auto v = vref->links(i);
       for (int j = 0; j < 2; ++j)
         key[j] = e0[v[j]];
       std::sort(key.begin(), key.end());
-      const auto it = edge_to_index.find(key);
+      auto it = edge_to_index.find(key);
       assert(it != edge_to_index.end());
       connections.push_back(it->second);
     }

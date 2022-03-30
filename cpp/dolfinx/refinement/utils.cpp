@@ -338,9 +338,10 @@ refinement::partition(const mesh::Mesh& old_mesh,
     for (std::size_t i = 0; i < graph.num_nodes(); ++i)
     {
       destinations.push_back(mpi_rank);
-      for (std::size_t j = 0; j < graph.num_links(i); ++j)
+      auto links = graph.links(i);
+      for (std::size_t j = 0; j < links.size(); ++j)
       {
-        std::int64_t index = graph.links(i)[j];
+        std::int64_t index = links[j];
         if (index < local_offsets[mpi_rank]
             or index >= local_offsets[mpi_rank + 1])
         {

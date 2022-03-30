@@ -349,11 +349,9 @@ face_long_edge(const mesh::Mesh& mesh)
   for (std::size_t f = 0; f < f_to_v->num_nodes(); ++f)
   {
     auto face_edges = f_to_e->links(f);
-
     std::int32_t imax = 0;
     double max_len = 0.0;
     double min_len = std::numeric_limits<double>::max();
-
     for (int i = 0; i < 3; ++i)
     {
       const double e_len = edge_length[face_edges[i]];

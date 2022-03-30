@@ -853,9 +853,9 @@ mesh::create_topology(MPI_Comm comm,
   std::vector<std::int32_t> local_vertex_indices(owned_vertices.size(), -1);
   {
     std::int32_t v = 0;
-    for (std::size_t c = 0; c < cells.num_nodes(); ++c)
+    for (auto cell : cells)
     {
-      for (auto vtx : cells.links(c))
+      for (auto vtx : cell)
       {
         auto it = std::lower_bound(owned_vertices.begin(), owned_vertices.end(),
                                    vtx);
@@ -1105,13 +1105,11 @@ mesh::entities_to_index(const mesh::Topology& topology, int dim,
   std::vector<std::int32_t> indices;
   indices.reserve(entities.num_nodes());
   std::vector<std::int32_t> vertices(num_vertices_per_entity);
-  for (std::size_t e = 0; e < entities.num_nodes(); ++e)
+  for (auto v : entities)
   {
-    auto v = entities.links(e);
-    assert(num_vertices_per_entity == static_cast<int>(entities.num_links(e)));
+    assert(num_vertices_per_entity == static_cast<int>(v.size()));
     std::copy(v.begin(), v.end(), vertices.begin());
     std::sort(vertices.begin(), vertices.end());
-
     if (auto it = entity_key_to_index.find(vertices);
         it != entity_key_to_index.end())
     {
