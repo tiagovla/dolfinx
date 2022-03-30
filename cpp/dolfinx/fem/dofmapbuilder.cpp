@@ -50,9 +50,9 @@ reorder_owned(const graph::AdjacencyList<std::int32_t>& dofmap,
 
   // Compute maximum number of graph out edges edges per dof
   std::vector<int> num_edges(owned_size);
-  for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  for (auto nodes : dofmap)
   {
-    auto nodes = dofmap.links(cell);
+    // auto nodes = dofmap.links(cell);
     for (auto n0 : nodes)
     {
       const std::int32_t node_0 = original_to_contiguous[n0];
@@ -67,6 +67,23 @@ reorder_owned(const graph::AdjacencyList<std::int32_t>& dofmap,
       }
     }
   }
+  // for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  // {
+  //   auto nodes = dofmap.links(cell);
+  //   for (auto n0 : nodes)
+  //   {
+  //     const std::int32_t node_0 = original_to_contiguous[n0];
+
+  //     // Skip unowned node
+  //     if (node_0 >= owned_size)
+  //       continue;
+  //     for (auto n1 : nodes)
+  //     {
+  //       if (n0 != n1 and original_to_contiguous[n1] < owned_size)
+  //         ++num_edges[node_0];
+  //     }
+  //   }
+  // }
 
   // Compute adjacency list with duplicate edges
   std::vector<std::int32_t> offsets(num_edges.size() + 1, 0);

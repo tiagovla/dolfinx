@@ -7,6 +7,8 @@
 #pragma once
 
 #include <cassert>
+#include <cstddef>
+#include <iterator>
 #include <numeric>
 #include <sstream>
 #include <utility>
@@ -111,9 +113,86 @@ public:
     return this->_array == list._array and this->_offsets == list._offsets;
   }
 
+  template <typename U, typename V>
+  struct Iterator
+  {
+    using iterator_category = std::forward_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = xtl::span<U>;
+    using pointer = xtl::span<U>*;   // or also value_type*
+    using reference = xtl::span<U>&; // or also value_type&
+
+    Iterator(V& array, const std::vector<std::int32_t>& offsets, std::size_t p)
+        : _array(array), _offsets(offsets), pos(p)
+    {
+      if (p < _offsets.size())
+      {
+        _row = xtl::span<U>(_array.data() + _offsets[pos],
+                            _offsets[pos + 1] - _offsets[pos]);
+      }
+    }
+
+    reference operator*() { return _row; }
+    pointer operator->() { return &_row; }
+
+    Iterator& operator++()
+    {
+      pos++;
+      if (pos < _offsets.size())
+      {
+        _row = xtl::span<U>(_array.data() + _offsets[pos],
+                            _offsets[pos + 1] - _offsets[pos]);
+      }
+      else
+        _row = xtl::span<U>();
+
+      return *this;
+    }
+
+    // Iterator operator++(int)
+    // {
+    //   Iterator tmp = *this;
+    //   ++(*this);
+    //   return tmp;
+    // }
+
+    friend bool operator==(const Iterator& a, const Iterator& b)
+    {
+      return a._row.data() == b._row.data() and a._row.size() == b._row.size();
+    }
+
+    friend bool operator!=(const Iterator& a, const Iterator& b)
+    {
+      return a._row.data() != b._row.data() or a._row.size() != b._row.size();
+    }
+
+  private:
+    V& _array;
+    const std::vector<std::int32_t>& _offsets;
+
+    std::size_t pos;
+    xtl::span<U> _row;
+  };
+
+  // Iterator<T, std::vector<T>> begin() { return Iterator(_array, _offsets, 0);
+  // } Iterator<T, std::vector<T>> end()
+  // {
+  //   return Iterator(_array, _offsets, _offsets.size());
+  // }
+
+  Iterator<const T, const std::vector<T>> begin() const
+  {
+    return Iterator<const T, const std::vector<T>>(_array, _offsets, 0);
+  }
+  Iterator<const T, const std::vector<T>> end() const
+  {
+    return Iterator<const T, const std::vector<T>>(_array, _offsets,
+                                                   _offsets.size());
+  }
+
   /// Get the number of nodes
   /// @return The number of nodes in the adjacency list
-   std::size_t num_nodes() const { return _offsets.size() - 1; }
+  std::size_t num_nodes() const { return _offsets.size() - 1; }
 
   /// Number of connections for given node
   /// @param [in] node Node index
