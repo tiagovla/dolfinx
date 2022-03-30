@@ -113,38 +113,54 @@ public:
     return this->_array == list._array and this->_offsets == list._offsets;
   }
 
-  template <typename U, typename V>
+  /// Iterator
+  template <typename V>
   struct Iterator
   {
-    using iterator_category = std::forward_iterator_tag;
-    using difference_type = std::ptrdiff_t;
-    using value_type = xtl::span<U>;
-    using pointer = xtl::span<U>*;   // or also value_type*
-    using reference = xtl::span<U>&; // or also value_type&
+
+    /// Type
+    using X = typename std::conditional<
+        std::is_const<V>::value,
+        typename std::add_const<typename V::value_type>::type,
+        typename std::remove_const<typename V::value_type>::type>::type;
+    /// X
+    using iterator_category = std::forward_iterator_tag; /// X
+    /// X
+    using difference_type = std::ptrdiff_t; /// X
+    /// X
+    using value_type = xtl::span<X>; /// X
+    /// X
+    using pointer = xtl::span<X>*; /// or also value_type*
+    /// X
+    using reference = xtl::span<X>&; /// or also value_type&
 
     Iterator(V& array, const std::vector<std::int32_t>& offsets, std::size_t p)
         : _array(array), _offsets(offsets), pos(p)
     {
       if (p < _offsets.size())
       {
-        _row = xtl::span<U>(_array.data() + _offsets[pos],
+        _row = xtl::span<X>(_array.data() + _offsets[pos],
                             _offsets[pos + 1] - _offsets[pos]);
       }
     }
 
+    /// X
     reference operator*() { return _row; }
+
+    /// X
     pointer operator->() { return &_row; }
 
+    /// X
     Iterator& operator++()
     {
       pos++;
-      if (pos < _offsets.size())
+      if (pos < _offsets.size() )
       {
-        _row = xtl::span<U>(_array.data() + _offsets[pos],
+        _row = xtl::span<X>(_array.data() + _offsets[pos],
                             _offsets[pos + 1] - _offsets[pos]);
       }
       else
-        _row = xtl::span<U>();
+        _row = xtl::span<X>();
 
       return *this;
     }
@@ -156,11 +172,13 @@ public:
     //   return tmp;
     // }
 
+    /// X
     friend bool operator==(const Iterator& a, const Iterator& b)
     {
       return a._row.data() == b._row.data() and a._row.size() == b._row.size();
     }
 
+    /// X
     friend bool operator!=(const Iterator& a, const Iterator& b)
     {
       return a._row.data() != b._row.data() or a._row.size() != b._row.size();
@@ -171,23 +189,28 @@ public:
     const std::vector<std::int32_t>& _offsets;
 
     std::size_t pos;
-    xtl::span<U> _row;
+    xtl::span<X> _row;
   };
 
-  // Iterator<T, std::vector<T>> begin() { return Iterator(_array, _offsets, 0);
-  // } Iterator<T, std::vector<T>> end()
-  // {
-  //   return Iterator(_array, _offsets, _offsets.size());
-  // }
+  /// Begin iterator
+  auto begin() { return Iterator<std::vector<T>>(_array, _offsets, 0); }
 
-  Iterator<const T, const std::vector<T>> begin() const
+  /// End iterator
+  auto end()
   {
-    return Iterator<const T, const std::vector<T>>(_array, _offsets, 0);
+    return Iterator<std::vector<T>>(_array, _offsets, _offsets.size());
   }
-  Iterator<const T, const std::vector<T>> end() const
+
+  /// Begin iterator (const)
+  auto begin() const
   {
-    return Iterator<const T, const std::vector<T>>(_array, _offsets,
-                                                   _offsets.size());
+    return Iterator<const std::vector<T>>(_array, _offsets, 0);
+  }
+
+  /// End iterator (const)
+  auto end() const
+  {
+    return Iterator<const std::vector<T>>(_array, _offsets, _offsets.size());
   }
 
   /// Get the number of nodes
