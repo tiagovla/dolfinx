@@ -189,7 +189,6 @@ public:
     V& _array;
     const std::vector<std::int32_t>& _offsets;
     std::vector<std::int32_t>::const_iterator _it;
-
     xtl::span<X> _row;
   };
 

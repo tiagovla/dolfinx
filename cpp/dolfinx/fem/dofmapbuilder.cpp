@@ -67,32 +67,14 @@ reorder_owned(const graph::AdjacencyList<std::int32_t>& dofmap,
       }
     }
   }
-  // for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
-  // {
-  //   auto nodes = dofmap.links(cell);
-  //   for (auto n0 : nodes)
-  //   {
-  //     const std::int32_t node_0 = original_to_contiguous[n0];
-
-  //     // Skip unowned node
-  //     if (node_0 >= owned_size)
-  //       continue;
-  //     for (auto n1 : nodes)
-  //     {
-  //       if (n0 != n1 and original_to_contiguous[n1] < owned_size)
-  //         ++num_edges[node_0];
-  //     }
-  //   }
-  // }
 
   // Compute adjacency list with duplicate edges
   std::vector<std::int32_t> offsets(num_edges.size() + 1, 0);
   std::partial_sum(num_edges.begin(), num_edges.end(),
                    std::next(offsets.begin(), 1));
   std::vector<std::int32_t> edges(offsets.back());
-  for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  for (auto nodes : dofmap)
   {
-    auto nodes = dofmap.links(cell);
     for (auto n0 : nodes)
     {
       const std::int32_t node_0 = original_to_contiguous[n0];
@@ -368,9 +350,8 @@ std::pair<std::vector<std::int32_t>, std::int32_t> compute_reordering_map(
   // owned dofs. Set to -1 for unowned dofs.
   std::vector<int> original_to_contiguous(dof_entity.size(), -1);
   std::int32_t counter_owned(0), counter_unowned(owned_size);
-  for (std::size_t cell = 0; cell < dofmap.num_nodes(); ++cell)
+  for (auto dofs : dofmap)
   {
-    auto dofs = dofmap.links(cell);
     for (std::size_t i = 0; i < dofs.size(); ++i)
     {
       if (original_to_contiguous[dofs[i]] == -1)

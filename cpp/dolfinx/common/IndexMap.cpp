@@ -690,9 +690,9 @@ std::map<std::int32_t, std::set<int>> IndexMap::compute_shared_indices() const
 
   std::vector<std::int64_t> fwd_sharing_data;
   std::vector<int> fwd_sharing_offsets{0};
-  for (std::size_t p = 0; p < _shared_indices->num_nodes(); ++p)
+  for (auto p : *_shared_indices)
   {
-    for (std::int32_t idx : _shared_indices->links(p))
+    for (std::int32_t idx : p)
     {
       assert(shared_indices.find(idx) != shared_indices.end());
       if (auto it = shared_indices.find(idx); it->second.size() > 1)
