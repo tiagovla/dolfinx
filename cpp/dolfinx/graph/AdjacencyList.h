@@ -142,9 +142,7 @@ public:
         _row = xtl::span<X>(_array.data() + *_it, *(_it + 1) - *_it);
     }
 
-    // difference_type operator-(const Iterator& it) { return it._it - ptr -
-    // it.ptr; }
-
+    /// X
     difference_type distance(const Iterator& first, const Iterator& last) const
     {
       return std::distance(first._it, last._it);
