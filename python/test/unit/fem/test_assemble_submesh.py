@@ -41,7 +41,10 @@ def assemble(mesh, space, k):
     b.ghostUpdate(addv=PETSc.InsertMode.ADD,
                   mode=PETSc.ScatterMode.REVERSE)
 
-    return A, b
+    s = mesh.comm.allreduce(fem.assemble_scalar(
+            fem.form(ufl.inner(f, f) * (dx + ds))), op=MPI.SUM)
+
+    return A, b, s
 
 
 @pytest.mark.parametrize("d", [2, 3])
@@ -69,17 +72,18 @@ def test_submesh_cell_assembly(d, n, k, space, ghost_mode):
             MPI.COMM_WORLD, ((0.0, 0.0, 0.0), (2.0, 1.0, 1.0)),
             (2 * n, n, n), ghost_mode=ghost_mode)
 
-    A_mesh_0, b_mesh_0 = assemble(mesh_0, space, k)
+    A_mesh_0, b_mesh_0, s_mesh_0 = assemble(mesh_0, space, k)
 
     edim = mesh_1.topology.dim
     entities = locate_entities(mesh_1, edim, lambda x: x[0] <= 1.0)
     submesh = create_submesh(mesh_1, edim, entities)[0]
-    A_submesh, b_submesh = assemble(submesh, space, k)
+    A_submesh, b_submesh, s_submesh = assemble(submesh, space, k)
 
     # FIXME Would probably be better to compare entries rather than just
     # norms
     assert(np.isclose(A_mesh_0.norm(), A_submesh.norm()))
     assert(np.isclose(b_mesh_0.norm(), b_submesh.norm()))
+    assert(np.isclose(s_mesh_0, s_submesh))
 
 
 @pytest.mark.parametrize("n", [2, 6])
@@ -97,11 +101,12 @@ def test_submesh_facet_assembly(n, k, space, ghost_mode):
         cube_mesh, edim, lambda x: np.isclose(x[2], 0.0))
     submesh = create_submesh(cube_mesh, edim, entities)[0]
 
-    A_submesh, b_submesh = assemble(submesh, space, k)
+    A_submesh, b_submesh, s_submesh = assemble(submesh, space, k)
 
     square_mesh = create_unit_square(
         MPI.COMM_WORLD, n, n, ghost_mode=ghost_mode)
-    A_square_mesh, b_square_mesh = assemble(square_mesh, space, k)
+    A_square_mesh, b_square_mesh, s_square_mesh = assemble(square_mesh, space, k)
 
     assert(np.isclose(A_submesh.norm(), A_square_mesh.norm()))
     assert(np.isclose(b_submesh.norm(), b_square_mesh.norm()))
+    assert(np.isclose(s_submesh, s_square_mesh))
