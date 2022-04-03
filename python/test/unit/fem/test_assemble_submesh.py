@@ -16,9 +16,11 @@ from dolfinx.mesh import (GhostMode, create_box, create_rectangle,
                           locate_entities, locate_entities_boundary)
 
 from mpi4py import MPI
+from petsc4py import PETSc
 
 
 def assemble(mesh, space, k):
+    # TODO BCs
     V = fem.FunctionSpace(mesh, (space, k))
     u, v = ufl.TrialFunction(V), ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
@@ -28,7 +30,18 @@ def assemble(mesh, space, k):
     A = fem.petsc.assemble_matrix(a)
     A.assemble()
 
-    return A
+    # TODO Test fem.Function
+    x = ufl.SpatialCoordinate(mesh)
+    if space == "Raviart-Thomas":
+        f = ufl.as_vector([i + 1.5 + x[0] for i in range(mesh.topology.dim)])
+    else:
+        f = 1.5 + x[0]
+    L = fem.form(ufl.inner(f, v) * (dx + ds))
+    b = fem.petsc.assemble_vector(L)
+    b.ghostUpdate(addv=PETSc.InsertMode.ADD,
+                  mode=PETSc.ScatterMode.REVERSE)
+
+    return A, b
 
 
 @pytest.mark.parametrize("d", [2, 3])
@@ -56,22 +69,22 @@ def test_submesh_cell_assembly(d, n, k, space, ghost_mode):
             MPI.COMM_WORLD, ((0.0, 0.0, 0.0), (2.0, 1.0, 1.0)),
             (2 * n, n, n), ghost_mode=ghost_mode)
 
-    A_mesh_0 = assemble(mesh_0, space, k)
+    A_mesh_0, b_mesh_0 = assemble(mesh_0, space, k)
 
     edim = mesh_1.topology.dim
     entities = locate_entities(mesh_1, edim, lambda x: x[0] <= 1.0)
     submesh = create_submesh(mesh_1, edim, entities)[0]
-    A_submesh = assemble(submesh, space, k)
+    A_submesh, b_submesh = assemble(submesh, space, k)
 
     # FIXME Would probably be better to compare entries rather than just
     # norms
     assert(np.isclose(A_mesh_0.norm(), A_submesh.norm()))
+    assert(np.isclose(b_mesh_0.norm(), b_submesh.norm()))
 
 
 @pytest.mark.parametrize("n", [2, 6])
 @pytest.mark.parametrize("k", [1, 4])
-@pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange",
-                                   "Raviart-Thomas"])
+@pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange"])
 @pytest.mark.parametrize("ghost_mode", [GhostMode.none,
                                         GhostMode.shared_facet])
 def test_submesh_facet_assembly(n, k, space, ghost_mode):
@@ -84,10 +97,11 @@ def test_submesh_facet_assembly(n, k, space, ghost_mode):
         cube_mesh, edim, lambda x: np.isclose(x[2], 0.0))
     submesh = create_submesh(cube_mesh, edim, entities)[0]
 
-    A_submesh = assemble(submesh, space, k)
+    A_submesh, b_submesh = assemble(submesh, space, k)
 
     square_mesh = create_unit_square(
         MPI.COMM_WORLD, n, n, ghost_mode=ghost_mode)
-    A_square_mesh = assemble(square_mesh, space, k)
+    A_square_mesh, b_square_mesh = assemble(square_mesh, space, k)
 
     assert(np.isclose(A_submesh.norm(), A_square_mesh.norm()))
+    assert(np.isclose(b_submesh.norm(), b_square_mesh.norm()))
