@@ -25,24 +25,26 @@ def assemble(mesh, space, k):
     u, v = ufl.TrialFunction(V), ufl.TestFunction(V)
     dx = ufl.Measure("dx", domain=mesh)
     ds = ufl.Measure("ds", domain=mesh)
-    a = fem.form(ufl.inner(u, v) * (dx + ds))
+
+    c = fem.Constant(mesh, PETSc.ScalarType(0.75))
+    a = fem.form(ufl.inner(c * u, v) * (dx + ds))
 
     A = fem.petsc.assemble_matrix(a)
     A.assemble()
 
-    # TODO Test fem.Function
+    # TODO Test assembly with fem.Function
     x = ufl.SpatialCoordinate(mesh)
     if space == "Raviart-Thomas":
         f = ufl.as_vector([i + 1.5 + x[0] for i in range(mesh.topology.dim)])
     else:
         f = 1.5 + x[0]
-    L = fem.form(ufl.inner(f, v) * (dx + ds))
+    L = fem.form(ufl.inner(c * f, v) * (dx + ds))
     b = fem.petsc.assemble_vector(L)
     b.ghostUpdate(addv=PETSc.InsertMode.ADD,
                   mode=PETSc.ScatterMode.REVERSE)
 
     s = mesh.comm.allreduce(fem.assemble_scalar(
-            fem.form(ufl.inner(f, f) * (dx + ds))), op=MPI.SUM)
+            fem.form(ufl.inner(c * f, f) * (dx + ds))), op=MPI.SUM)
 
     return A, b, s
 
