@@ -94,13 +94,21 @@ def test_submesh_cell_assembly(d, n, k, space, ghost_mode):
     # FIXME Would probably be better to compare entries rather than just
     # norms
     assert(np.isclose(A_mesh_0.norm(), A_submesh.norm()))
+<<<<<<< HEAD
     assert(np.isclose(b_mesh_0.norm(), b_submesh.norm()))
     assert(np.isclose(s_mesh_0, s_submesh))
+=======
+>>>>>>> main
 
 
 @pytest.mark.parametrize("n", [2, 6])
 @pytest.mark.parametrize("k", [1, 4])
+<<<<<<< HEAD
 @pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange"])
+=======
+@pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange",
+                                   "Raviart-Thomas"])
+>>>>>>> main
 @pytest.mark.parametrize("ghost_mode", [GhostMode.none,
                                         GhostMode.shared_facet])
 def test_submesh_facet_assembly(n, k, space, ghost_mode):
@@ -113,6 +121,7 @@ def test_submesh_facet_assembly(n, k, space, ghost_mode):
         cube_mesh, edim, lambda x: np.isclose(x[2], 0.0))
     submesh = create_submesh(cube_mesh, edim, entities)[0]
 
+<<<<<<< HEAD
     A_submesh, b_submesh, s_submesh = assemble(submesh, space, k)
 
     square_mesh = create_unit_square(
@@ -122,3 +131,12 @@ def test_submesh_facet_assembly(n, k, space, ghost_mode):
     assert(np.isclose(A_submesh.norm(), A_square_mesh.norm()))
     assert(np.isclose(b_submesh.norm(), b_square_mesh.norm()))
     assert(np.isclose(s_submesh, s_square_mesh))
+=======
+    A_submesh = assemble(submesh, space, k)
+
+    square_mesh = create_unit_square(
+        MPI.COMM_WORLD, n, n, ghost_mode=ghost_mode)
+    A_square_mesh = assemble(square_mesh, space, k)
+
+    assert(np.isclose(A_submesh.norm(), A_square_mesh.norm()))
+>>>>>>> main
