@@ -29,7 +29,13 @@ def assemble(mesh, space, k):
     c = fem.Constant(mesh, PETSc.ScalarType(0.75))
     a = fem.form(ufl.inner(c * u, v) * (dx + ds))
 
-    A = fem.petsc.assemble_matrix(a)
+    facet_dim = mesh.topology.dim - 1
+    facets = locate_entities_boundary(
+        mesh, facet_dim, lambda x: np.isclose(x[0], 1))
+    dofs = fem.locate_dofs_topological(V, facet_dim, facets)
+    bc = fem.dirichletbc(PETSc.ScalarType(2.5), dofs, V)
+
+    A = fem.petsc.assemble_matrix(a, bcs=[bc])
     A.assemble()
 
     # TODO Test assembly with fem.Function
@@ -40,8 +46,10 @@ def assemble(mesh, space, k):
         f = 1.5 + x[0]
     L = fem.form(ufl.inner(c * f, v) * (dx + ds))
     b = fem.petsc.assemble_vector(L)
+    fem.petsc.apply_lifting(b, [a], bcs=[[bc]])
     b.ghostUpdate(addv=PETSc.InsertMode.ADD,
                   mode=PETSc.ScatterMode.REVERSE)
+    fem.petsc.set_bc(b, [bc])
 
     s = mesh.comm.allreduce(fem.assemble_scalar(
             fem.form(ufl.inner(c * f, f) * (dx + ds))), op=MPI.SUM)
@@ -53,8 +61,10 @@ def assemble(mesh, space, k):
 @pytest.mark.parametrize("n", [2, 6])
 @pytest.mark.parametrize("k", [1, 4])
 # FIXME Nedelec
-@pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange",
-                                   "Raviart-Thomas"])
+# TODO Uncomment
+# @pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange",
+#                                    "Raviart-Thomas"])
+@pytest.mark.parametrize("space", ["Lagrange", "Discontinuous Lagrange"])
 @pytest.mark.parametrize("ghost_mode", [GhostMode.none,
                                         GhostMode.shared_facet])
 def test_submesh_cell_assembly(d, n, k, space, ghost_mode):
