@@ -59,6 +59,8 @@ jobs:
         run: |
           cmake --build build
           cmake --install build
+      - name: Debug pyvista
+        run: xvfb-run python3 -c "import pyvista; pyvista.Sphere().plot(off_screen=True, screenshot='/tmp/tmp.png')"
 
       - name: Build Python interface
         run: python3 -m pip -v install --global-option build --global-option --debug python/
