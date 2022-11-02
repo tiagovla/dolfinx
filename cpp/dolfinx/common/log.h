@@ -9,7 +9,7 @@
 #define LOGURU_WITH_STREAMS 1
 #define LOGURU_REPLACE_GLOG 1
 
-#include "loguru.hpp"
+#include <dolfinx/common/loguru.hpp>
 
 namespace dolfinx
 {
