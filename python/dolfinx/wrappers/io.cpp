@@ -132,13 +132,13 @@ void io(py::module& m)
            py::arg("name") = "mesh", py::arg("xpath") = "/Xdmf/Domain")
       .def("write_function",
            py::overload_cast<const dolfinx::fem::Function<double>&, double,
-                             std::string>(
+                             const std::string&>(
                &dolfinx::io::XDMFFile::write_function),
            py::arg("function"), py::arg("t"), py::arg("mesh_xpath"))
       .def(
           "write_function",
           py::overload_cast<const dolfinx::fem::Function<std::complex<double>>&,
-                            double, std::string>(
+                            double, const std::string&>(
               &dolfinx::io::XDMFFile::write_function),
           py::arg("function"), py::arg("t"), py::arg("mesh_xpath"))
       .def("write_meshtags", &dolfinx::io::XDMFFile::write_meshtags,
