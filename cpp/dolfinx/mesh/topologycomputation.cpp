@@ -832,7 +832,7 @@ mesh::compute_connectivity(const Topology& topology, int d0, int d1)
       return {c_d0_d1, nullptr};
     }
   }
-  else if (d0 > d1)
+  else
   {
     // Compute by mapping vertices from a lower dimension entity to
     // those of a higher dimension entity
@@ -840,7 +840,5 @@ mesh::compute_connectivity(const Topology& topology, int d0, int d1)
         compute_from_map(*c_d0_0, *c_d1_0, d0, d1));
     return {c_d0_d1, nullptr};
   }
-  else
-    throw std::runtime_error("Entity dimension error when computing topology.");
 }
 //--------------------------------------------------------------------------

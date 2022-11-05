@@ -471,11 +471,11 @@ void fides_write_data(adios2::IO& io, adios2::Engine& engine,
   // Get vertex data. If the mesh and function dofmaps are the same we
   // can work directly with the dof array.
   std::span<const T> data;
-  std::vector<T> _data;
   if (mesh->geometry().dofmap() == dofmap->list() and !need_padding)
     data = u.x()->array();
   else
   {
+    std::vector<T> _data;
     _data = pack_function_data(u);
     data = std::span<const T>(_data);
   }
@@ -621,7 +621,7 @@ void fides_initialize_function_attributes(adios2::IO& io,
   {
     std::vector<std::string> u_type;
     std::transform(u_data.cbegin(), u_data.cend(), std::back_inserter(u_type),
-                   [](auto& f) { return f[1]; });
+                   [](const auto& f) { return f[1]; });
     io.DefineAttribute<std::string>("Fides_Variable_Associations",
                                     u_type.data(), u_type.size());
   }
@@ -633,7 +633,7 @@ void fides_initialize_function_attributes(adios2::IO& io,
   {
     std::vector<std::string> names;
     std::transform(u_data.cbegin(), u_data.cend(), std::back_inserter(names),
-                   [](auto& f) { return f[0]; });
+                   [](const auto& f) { return f[0]; });
     io.DefineAttribute<std::string>("Fides_Variable_List", names.data(),
                                     names.size());
   }

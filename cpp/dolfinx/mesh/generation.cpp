@@ -20,7 +20,7 @@ namespace
 //-----------------------------------------------------------------------------
 std::vector<double> create_geom(MPI_Comm comm,
                                 const std::array<std::array<double, 3>, 2>& p,
-                                std::array<std::size_t, 3> n)
+                                const std::array<std::size_t, 3> n)
 {
   // Extract data
   const std::array<double, 3> p0 = p[0];
@@ -247,7 +247,7 @@ mesh::Mesh mesh::create_box(MPI_Comm comm,
 
 namespace
 {
-mesh::Mesh build(MPI_Comm comm, std::size_t nx, std::array<double, 2> x,
+mesh::Mesh build(MPI_Comm comm, std::size_t nx, const std::array<double, 2> x,
                  const CellPartitionFunction& partitioner)
 {
   fem::CoordinateElement element(CellType::interval, 1);
@@ -260,8 +260,7 @@ mesh::Mesh build(MPI_Comm comm, std::size_t nx, std::array<double, 2> x,
         element, std::vector<double>(), {0, 1}, partitioner);
   }
 
-  const double a = x[0];
-  const double b = x[1];
+  const auto [a, b] = x;
   const double ab = (b - a) / static_cast<double>(nx);
 
   if (std::abs(a - b) < DBL_EPSILON)
@@ -308,7 +307,7 @@ namespace
 //-----------------------------------------------------------------------------
 mesh::Mesh build_tri(MPI_Comm comm,
                      const std::array<std::array<double, 2>, 2>& p,
-                     std::array<std::size_t, 2> n,
+                     const std::array<std::size_t, 2> n,
                      const CellPartitionFunction& partitioner,
                      DiagonalType diagonal)
 {
@@ -495,7 +494,7 @@ mesh::Mesh build_tri(MPI_Comm comm,
 //-----------------------------------------------------------------------------
 mesh::Mesh build_quad(MPI_Comm comm,
                       const std::array<std::array<double, 2>, 2> p,
-                      std::array<std::size_t, 2> n,
+                      const std::array<std::size_t, 2> n,
                       const CellPartitionFunction& partitioner)
 {
   fem::CoordinateElement element(CellType::quadrilateral, 1);

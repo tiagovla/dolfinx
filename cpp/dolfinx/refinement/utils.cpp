@@ -126,9 +126,9 @@ void refinement::update_logical_edgefunction(
   std::vector<std::int64_t> data_to_send;
   for (std::size_t i = 0; i < marked_for_update.size(); ++i)
   {
-    for (std::int32_t q : marked_for_update[i])
-      data_to_send.push_back(local_to_global(q, map));
-
+    std::transform(marked_for_update[i].begin(), marked_for_update[i].end(),
+                   std::back_inserter(data_to_send),
+                   [&map](const auto& q) { return local_to_global(q, map); });
     send_sizes.push_back(marked_for_update[i].size());
   }
 

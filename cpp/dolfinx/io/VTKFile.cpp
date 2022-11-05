@@ -197,7 +197,7 @@ void add_mesh(const std::span<const double>& x,
               const std::span<const std::int64_t> x_id,
               const std::span<const std::uint8_t> x_ghost,
               const std::span<const std::int64_t>& cells,
-              std::array<std::size_t, 2> cshape,
+              const std::array<std::size_t, 2> cshape,
               const common::IndexMap& cellmap, mesh::CellType celltype,
               int tdim, pugi::xml_node& piece_node)
 {
@@ -221,7 +221,7 @@ void add_mesh(const std::span<const double>& x,
   {
     std::stringstream ss;
     std::for_each(cells.begin(), cells.end(),
-                  [&ss](auto& v) { ss << v << " "; });
+                  [&ss](const auto& v) { ss << v << " "; });
     connectivity_node.append_child(pugi::node_pcdata)
         .set_value(ss.str().c_str());
   }
@@ -280,7 +280,7 @@ void add_mesh(const std::span<const double>& x,
     for (std::int32_t c = 0; c < cellmap.size_local(); ++c)
       ss << cell_offset + c << " ";
     std::for_each(cellmap.ghosts().begin(), cellmap.ghosts().end(),
-                  [&ss](auto& idx) { ss << idx << " "; });
+                  [&ss](const auto& idx) { ss << idx << " "; });
     cell_id_node.append_child(pugi::node_pcdata).set_value(ss.str().c_str());
   }
 
@@ -685,9 +685,9 @@ void write_function(
 //----------------------------------------------------------------------------
 io::VTKFile::VTKFile(MPI_Comm comm, const std::filesystem::path& filename,
                      const std::string&)
-    : _filename(filename), _comm(comm)
+    : _pvd_xml(std::make_unique<pugi::xml_document>()), _filename(filename),
+      _comm(comm)
 {
-  _pvd_xml = std::make_unique<pugi::xml_document>();
   assert(_pvd_xml);
   pugi::xml_node vtk_node = _pvd_xml->append_child("VTKFile");
   vtk_node.append_attribute("type") = "Collection";

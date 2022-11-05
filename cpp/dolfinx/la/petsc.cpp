@@ -28,8 +28,8 @@ using namespace dolfinx::la;
   } while (0)
 
 //-----------------------------------------------------------------------------
-void la::petsc::error(int error_code, std::string filename,
-                      std::string petsc_function)
+void la::petsc::error(int error_code, const std::string& filename,
+                      const std::string& petsc_function)
 {
   // Fetch PETSc error description
   const char* desc;

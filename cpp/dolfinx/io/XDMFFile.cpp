@@ -188,7 +188,7 @@ void XDMFFile::close()
   _h5_id = -1;
 }
 //-----------------------------------------------------------------------------
-void XDMFFile::write_mesh(const mesh::Mesh& mesh, std::string xpath)
+void XDMFFile::write_mesh(const mesh::Mesh& mesh, const std::string& xpath)
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -202,8 +202,8 @@ void XDMFFile::write_mesh(const mesh::Mesh& mesh, std::string xpath)
     _xml_doc->save_file(_filename.c_str(), "  ");
 }
 //-----------------------------------------------------------------------------
-void XDMFFile::write_geometry(const mesh::Geometry& geometry, std::string name,
-                              std::string xpath)
+void XDMFFile::write_geometry(const mesh::Geometry& geometry,
+                              const std::string& name, const std::string& xpath)
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -247,7 +247,8 @@ mesh::Mesh XDMFFile::read_mesh(const fem::CoordinateElement& element,
 }
 //-----------------------------------------------------------------------------
 std::pair<std::vector<std::int64_t>, std::array<std::size_t, 2>>
-XDMFFile::read_topology_data(std::string name, std::string xpath) const
+XDMFFile::read_topology_data(const std::string& name,
+                             const std::string& xpath) const
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -263,7 +264,8 @@ XDMFFile::read_topology_data(std::string name, std::string xpath) const
 }
 //-----------------------------------------------------------------------------
 std::pair<std::vector<double>, std::array<std::size_t, 2>>
-XDMFFile::read_geometry_data(std::string name, std::string xpath) const
+XDMFFile::read_geometry_data(const std::string& name,
+                             const std::string& xpath) const
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -279,19 +281,20 @@ XDMFFile::read_geometry_data(std::string name, std::string xpath) const
 }
 //-----------------------------------------------------------------------------
 void XDMFFile::write_function(const fem::Function<double>& u, double t,
-                              std::string mesh_xpath)
+                              const std::string& mesh_xpath)
 {
   _write_function(_comm, u, t, mesh_xpath, *_xml_doc, _h5_id, _filename);
 }
 //-----------------------------------------------------------------------------
 void XDMFFile::write_function(const fem::Function<std::complex<double>>& u,
-                              double t, std::string mesh_xpath)
+                              double t, const std::string& mesh_xpath)
 {
   _write_function(_comm, u, t, mesh_xpath, *_xml_doc, _h5_id, _filename);
 }
 //-----------------------------------------------------------------------------
 void XDMFFile::write_meshtags(const mesh::MeshTags<std::int32_t>& meshtags,
-                              std::string geometry_xpath, std::string xpath)
+                              const std::string& geometry_xpath,
+                              const std::string& xpath)
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -316,7 +319,7 @@ void XDMFFile::write_meshtags(const mesh::MeshTags<std::int32_t>& meshtags,
 //-----------------------------------------------------------------------------
 mesh::MeshTags<std::int32_t>
 XDMFFile::read_meshtags(std::shared_ptr<const mesh::Mesh> mesh,
-                        std::string name, std::string xpath)
+                        const std::string& name, const std::string& xpath)
 {
   LOG(INFO) << "XDMF read meshtags (" << name << ")";
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
@@ -362,8 +365,8 @@ XDMFFile::read_meshtags(std::shared_ptr<const mesh::Mesh> mesh,
   return meshtags;
 }
 //-----------------------------------------------------------------------------
-std::pair<mesh::CellType, int> XDMFFile::read_cell_type(std::string grid_name,
-                                                        std::string xpath)
+std::pair<mesh::CellType, int>
+XDMFFile::read_cell_type(const std::string& grid_name, const std::string& xpath)
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -387,8 +390,9 @@ std::pair<mesh::CellType, int> XDMFFile::read_cell_type(std::string grid_name,
   return {cell_type, cell_type_str.second};
 }
 //-----------------------------------------------------------------------------
-void XDMFFile::write_information(std::string name, std::string value,
-                                 std::string xpath)
+void XDMFFile::write_information(const std::string& name,
+                                 const std::string& value,
+                                 const std::string& xpath)
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)
@@ -404,7 +408,7 @@ void XDMFFile::write_information(std::string name, std::string value,
     _xml_doc->save_file(_filename.c_str(), "  ");
 }
 //-----------------------------------------------------------------------------
-std::string XDMFFile::read_information(std::string name, std::string xpath)
+std::string XDMFFile::read_information(const std::string& name, const std::string &xpath)
 {
   pugi::xml_node node = _xml_doc->select_node(xpath.c_str()).node();
   if (!node)

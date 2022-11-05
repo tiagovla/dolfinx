@@ -348,9 +348,9 @@ xdmf_utils::get_dataset_shape(const pugi::xml_node& dataset_node)
     std::vector<std::string> dims_list;
     boost::split(dims_list, dims_str, boost::is_any_of(" "));
 
-    // Cast dims to integers
-    for (auto d : dims_list)
-      dims.push_back(boost::lexical_cast<std::int64_t>(d));
+    std::transform(dims_list.begin(), dims_list.end(), std::back_inserter(dims),
+                   [](auto& d)
+                   { return boost::lexical_cast<std::int64_t>(d); });
   }
 
   return dims;

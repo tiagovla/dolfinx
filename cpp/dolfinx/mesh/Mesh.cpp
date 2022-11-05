@@ -78,8 +78,8 @@ Mesh mesh::create_mesh(MPI_Comm comm,
   const fem::ElementDofLayout dof_layout = element.create_dof_layout();
 
   // Function top build geometry. Used to scope memory operations.
-  auto build_topology = [](auto comm, auto& element, auto& dof_layout,
-                           auto& cells, auto& cell_partitioner)
+  auto build_topology = [](auto comm, auto& element, const auto& dof_layout,
+                           auto& cells, const auto& cell_partitioner)
   {
     // -- Partition topology
 

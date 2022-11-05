@@ -81,9 +81,9 @@ determine_sharing_ranks(MPI_Comm comm,
 
       // Store global rank and find iterator to next global rank
       dest.push_back((*it)[0]);
-      auto it1
-          = std::find_if(it, dest_to_index.end(),
-                         [r = dest.back()](auto& idx) { return idx[0] != r; });
+      auto it1 = std::find_if(it, dest_to_index.end(),
+                              [r = dest.back()](const auto& idx)
+                              { return idx[0] != r; });
 
       // Store number of items for current rank
       num_items_per_dest0.push_back(std::distance(it, it1));
@@ -160,7 +160,7 @@ determine_sharing_ranks(MPI_Comm comm,
     {
       // Find iterator to next different global index
       auto it1 = std::find_if(it, indices_list.end(),
-                              [idx0 = (*it)[0]](auto& idx)
+                              [idx0 = (*it)[0]](const auto& idx)
                               { return idx[0] != idx0; });
 
       // Number of times index is repeated
@@ -179,7 +179,7 @@ determine_sharing_ranks(MPI_Comm comm,
       // owner
       for (auto itx = it; itx != it1; ++itx)
       {
-        auto& data = *itx;
+        const auto& data = *itx;
         num_items_per_pos1[data[1]] = num + 1;
         num_items_per_dest1[data[2]] += num + 1;
       }
@@ -215,7 +215,7 @@ determine_sharing_ranks(MPI_Comm comm,
       auto indices_it1 = std::next(indices_it0, num_sharing_ranks);
       for (std::int32_t j = disp1[i]; j < disp1[i + 1]; ++j)
       {
-        auto& data1 = indices_list[j];
+        const auto& data1 = indices_list[j];
         std::size_t pos = data1[1];
         std::int32_t bufferpos = bdisp1[pos];
         send_buffer1[bufferpos] = num_sharing_ranks;
@@ -223,7 +223,7 @@ determine_sharing_ranks(MPI_Comm comm,
         // Store indices (global)
         auto it0 = std::next(send_buffer1.begin(), bufferpos + 1);
         std::transform(indices_it0, indices_it1, it0,
-                       [&src](auto& x) { return src[x[2]]; });
+                       [&src](const auto& x) { return src[x[2]]; });
 
         auto it1 = std::next(it0, num_sharing_ranks);
         auto it_owner = std::find(it0, it1, src[owner_rank]);
@@ -642,7 +642,7 @@ std::vector<std::array<std::int64_t, 3>> exchange_ghost_indexing(
         auto it = std::lower_bound(
             global_local_entities1.begin(), global_local_entities1.end(),
             std::pair<std::int64_t, std::int32_t>(vertex_old, 0),
-            [](auto& a, auto& b) { return a.first < b.first; });
+            [](const auto& a, const auto& b) { return a.first < b.first; });
         assert(it != global_local_entities1.end());
         assert(it->first == vertex_old);
         assert(it->second != -1);
@@ -708,7 +708,8 @@ graph::AdjacencyList<std::int32_t> convert_to_local_indexing(
                    auto it = std::lower_bound(
                        global_to_local.begin(), global_to_local.end(),
                        std::pair<std::int64_t, std::int32_t>(i, 0),
-                       [](auto& a, auto& b) { return a.first < b.first; });
+                       [](const auto& a, const auto& b)
+                       { return a.first < b.first; });
                    assert(it != global_to_local.end());
                    assert(it->first == i);
                    return it->second;
@@ -1101,8 +1102,8 @@ Topology mesh::create_topology(
   //
   // Note: This step is required only for meshes with ghost cells and
   // could be skipped when the mesh is not ghosted.
-  std::vector<int> dest;
   {
+    std::vector<int> dest;
     // Build list of ranks that own vertices that are ghosted by this
     // rank (out edges)
     std::vector<int> src = ghost_vertex_owners;

@@ -418,17 +418,12 @@ std::vector<std::int32_t> mesh::locate_entities(
   for (int e = 0; e < e_to_v->num_nodes(); ++e)
   {
     // Iterate over entity vertices
-    bool all_vertices_marked = true;
-    for (std::int32_t v : e_to_v->links(e))
-    {
-      if (!marked[v])
-      {
-        all_vertices_marked = false;
-        break;
-      }
-    }
+    const auto& nodes = e_to_v->links(e);
+    bool all_vertices_marked
+        = std::all_of(nodes.begin(), nodes.end(),
+                      [&marked](const int32_t& v) { return marked[v]; });
 
-    if (all_vertices_marked)
+    if (all_vertices_marked && !nodes.empty())
       entities.push_back(e);
   }
 

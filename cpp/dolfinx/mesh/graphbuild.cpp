@@ -180,7 +180,7 @@ graph::AdjacencyList<std::int64_t> compute_nonlocal_dual_graph(
 
         // Find iterator to next global rank
         auto it1 = std::find_if(it, dest_to_index.end(),
-                                [r = dest.back()](auto& idx)
+                                [r = dest.back()](const auto& idx)
                                 { return idx[0] != r; });
 
         // Store number of items for current rank

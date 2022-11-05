@@ -223,21 +223,21 @@ int mesh::num_cell_vertices(CellType type)
 std::map<std::array<int, 2>, std::vector<std::set<int>>>
 mesh::cell_entity_closure(CellType cell_type)
 {
-  const int cell_dim = mesh::cell_dim(cell_type);
+  const int cell_dimension = mesh::cell_dim(cell_type);
   std::array<int, 4> num_entities;
-  for (int i = 0; i <= cell_dim; ++i)
+  for (int i = 0; i <= cell_dimension; ++i)
     num_entities[i] = cell_num_entities(cell_type, i);
 
   const graph::AdjacencyList<int> edge_v = get_entity_vertices(cell_type, 1);
   const auto face_e = get_sub_entities(cell_type, 2, 1);
 
   std::map<std::array<int, 2>, std::vector<std::set<int>>> entity_closure;
-  for (int dim = 0; dim <= cell_dim; ++dim)
+  for (int dim = 0; dim <= cell_dimension; ++dim)
   {
     for (int entity = 0; entity < num_entities[dim]; ++entity)
     {
       // Add self
-      entity_closure[{{dim, entity}}].resize(cell_dim + 1);
+      entity_closure[{{dim, entity}}].resize(cell_dimension + 1);
       entity_closure[{{dim, entity}}][dim].insert(entity);
 
       if (dim == 3)

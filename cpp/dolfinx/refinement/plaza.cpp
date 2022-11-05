@@ -6,6 +6,7 @@
 
 #include "plaza.h"
 #include "utils.h"
+#include <algorithm>
 #include <dolfinx/common/IndexMap.h>
 #include <dolfinx/common/Timer.h>
 #include <dolfinx/graph/AdjacencyList.h>
@@ -70,9 +71,9 @@ void enforce_rules(MPI_Comm neighbor_comm,
       if (marked_edges[long_e])
         continue;
 
-      bool any_marked = false;
-      for (auto edge : f_to_e->links(f))
-        any_marked = any_marked or marked_edges[edge];
+      bool any_marked = std::any_of(
+          f_to_e->links(f).begin(), f_to_e->links(f).end(),
+          [&marked_edges](const auto& edge) { return marked_edges[edge]; });
 
       if (any_marked)
       {
@@ -530,9 +531,9 @@ compute_refinement(MPI_Comm neighbor_comm,
 
     if (no_edge_marked)
     {
-      // Copy over existing cell to new topology
-      for (auto v : vertices)
-        cell_topology.push_back(global_indices[v]);
+      std::transform(
+          vertices.begin(), vertices.end(), std::back_inserter(cell_topology),
+          [&global_indices](const auto& v) { return global_indices[v]; });
 
       if (compute_parent_cell)
         parent_cell.push_back(c);
@@ -549,8 +550,9 @@ compute_refinement(MPI_Comm neighbor_comm,
       // Need longest edges of each face in cell local indexing. NB in
       // 2D the face is the cell itself, and there is just one entry.
       std::vector<std::int32_t> longest_edge;
-      for (auto f : c_to_f->links(c))
-        longest_edge.push_back(long_edge[f]);
+      std::transform(c_to_f->links(c).begin(), c_to_f->links(c).end(),
+                     std::back_inserter(longest_edge),
+                     [&long_edge](const auto& f) { return long_edge[f]; });
 
       // Convert to cell local index
       for (std::int32_t& p : longest_edge)
@@ -589,8 +591,9 @@ compute_refinement(MPI_Comm neighbor_comm,
       }
 
       // Convert from cell local index to mesh index and add to cells
-      for (std::int32_t v : simplex_set)
-        cell_topology.push_back(indices[v]);
+      std::transform(simplex_set.begin(), simplex_set.end(),
+                     std::back_inserter(cell_topology),
+                     [&indices](const auto& v) { return indices[v]; });
     }
   }
 
