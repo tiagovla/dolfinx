@@ -25,9 +25,9 @@ jobs:
         run: |
           conda update conda
 
-      - name: Install DOLFINx (py3-9)
-        run: conda create -n env3-9 -c conda-forge python=3.9 fenics-dolfinx mpich
-      - name: Test (py3-9)
+      - name: Install DOLFINx (py3-${{ matrix.version }})
+        run: conda create -n env3-{{ matrix.version }} -c conda-forge python=3.{{ matrix.version }} fenics-dolfinx mpich
+      - name: Test (py3-{{ matrix.version }})
         run: |
-          conda run -n env3-9 python -c "import dolfinx; from mpi4py import MPI; dolfinx.mesh.create_rectangle(comm=MPI.COMM_WORLD, points=((0, 0), (2, 1)), n=(32, 16))"
-          conda run -n env3-9 mpirun -np 2 python -c "import dolfinx; from mpi4py import MPI; dolfinx.mesh.create_rectangle(comm=MPI.COMM_WORLD, points=((0, 0), (2, 1)), n=(32, 16))"
+          conda run -n env3-{{ matrix.version }} python -c "import dolfinx; from mpi4py import MPI; dolfinx.mesh.create_rectangle(comm=MPI.COMM_WORLD, points=((0, 0), (2, 1)), n=(32, 16))"
+          conda run -n env3-{{ matrix.version }} mpirun -np 2 python -c "import dolfinx; from mpi4py import MPI; dolfinx.mesh.create_rectangle(comm=MPI.COMM_WORLD, points=((0, 0), (2, 1)), n=(32, 16))"
